@@ -1,5 +1,6 @@
 import path from "node:path";
 import chokidar from "chokidar";
+import type { FSWatcher } from "chokidar";
 import { buildProject } from "./build.js";
 import { behaviorSourceDir, configFileName, internalOutDir, loadConfig } from "./config.js";
 
@@ -31,6 +32,8 @@ export async function runDev(projectDir: string): Promise<void> {
   process.on("SIGINT", () => {
     void watcher.close().then(() => process.exit(0));
   });
+
+  await waitForWatcherReady(watcher);
 }
 
 async function runBuildAttempt(projectDir: string): Promise<void> {
@@ -72,4 +75,11 @@ function isIgnoredPath(projectDir: string, candidatePath: string): boolean {
 function isInsidePath(parentPath: string, candidatePath: string): boolean {
   const relativePath = path.relative(parentPath, candidatePath);
   return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
+}
+
+function waitForWatcherReady(watcher: FSWatcher): Promise<void> {
+  return new Promise((resolve, reject) => {
+    watcher.once("ready", resolve);
+    watcher.once("error", reject);
+  });
 }
