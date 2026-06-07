@@ -4,7 +4,11 @@ import type { FSWatcher } from "chokidar";
 import { buildProject } from "./build.js";
 import { behaviorSourceDir, configFileName, internalOutDir, loadConfig } from "./config.js";
 
-export async function runDev(projectDir: string): Promise<void> {
+export interface DevSession {
+  close(): Promise<void>;
+}
+
+export async function runDev(projectDir: string): Promise<DevSession> {
   const config = await loadConfig(projectDir);
   await runBuildAttempt(projectDir);
   const srcDir = path.join(projectDir, "src");
@@ -29,11 +33,22 @@ export async function runDev(projectDir: string): Promise<void> {
     }, 100);
   });
 
-  process.on("SIGINT", () => {
+  const handleSigint = () => {
     void watcher.close().then(() => process.exit(0));
-  });
+  };
+  process.on("SIGINT", handleSigint);
 
   await waitForWatcherReady(watcher);
+
+  return {
+    async close() {
+      if (timer) {
+        clearTimeout(timer);
+      }
+      process.off("SIGINT", handleSigint);
+      await watcher.close();
+    },
+  };
 }
 
 async function runBuildAttempt(projectDir: string): Promise<void> {
