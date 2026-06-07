@@ -1,4 +1,5 @@
 import os from "node:os";
+import fs from "node:fs";
 import path from "node:path";
 import { CliError } from "./errors.js";
 import { loadUserConfig } from "./user-config.js";
@@ -21,7 +22,7 @@ export async function resolveMinecraftPath(config: ScaffoldingConfig): Promise<s
   }
 
   const candidate = getDefaultMinecraftPathCandidates().find(
-    (candidate) => candidate.edition === config.minecraft.edition,
+    (candidate) => candidate.edition === config.minecraft.edition && candidate.exists,
   );
   if (candidate) {
     return path.resolve(candidate.path);
@@ -81,6 +82,14 @@ function candidate(
     edition,
     label,
     path: candidatePath,
-    exists: true,
+    exists: directoryExists(candidatePath),
   };
+}
+
+function directoryExists(candidatePath: string): boolean {
+  try {
+    return fs.statSync(candidatePath).isDirectory();
+  } catch {
+    return false;
+  }
 }
