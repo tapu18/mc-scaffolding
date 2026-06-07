@@ -19,6 +19,8 @@ npm run dev
 
 生成プロジェクトでは、`src/` に Script API の TypeScript、`behavior/` に Behavior Pack の静的ファイルを置きます。ビルド時はそれらを組み合わせた `dist/` を Minecraft の `development_behavior_packs` へ同期します。
 
+`init` は VS Code の Minecraft Bedrock Edition Debugger 用に `.vscode/launch.json` と `.vscode/tasks.json` も生成します。debug 用 sourcemap は `dist/debug/`、生成 JavaScript は `dist/scripts/` に分けて出力します。
+
 Minecraft の同期先をユーザー単位で保存できます。
 
 ```bash

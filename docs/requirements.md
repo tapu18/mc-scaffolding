@@ -69,6 +69,8 @@ beta API を許可した場合の npm package version は、通常版 Minecraft 
 - `tsconfig.json`
 - `src/main.ts`
 - `behavior/`
+- `.vscode/launch.json`
+- `.vscode/tasks.json`
 - `scaffolding.config.ts`
 - `.gitignore`
 
@@ -89,6 +91,8 @@ TypeScript をビルドし、Behavior Pack として配置できる成果物を�
 
 `behavior/manifest.json` は `init` 時に生成し、build 時には再生成しない。以降は `behavior/` 配下の他のファイルと同じく、ユーザーが編集した内容をそのまま `dist/` へコピーする。
 
+debug 用 sourcemap が有効な場合、生成 JavaScript は `dist/scripts/`、sourcemap は `dist/debug/` に分けて出力する。
+
 MVP では、ビルド後に Minecraft Bedrock の開発用 Behavior Pack フォルダへの同期まで実行する。
 
 同期しないビルドが必要な場合は `--no-sync` を使う。
@@ -100,6 +104,8 @@ dist/
   manifest.json
   scripts/
     main.js
+  debug/
+    main.js.map
   functions/
   entities/
 ```
@@ -145,9 +151,16 @@ Minecraft 同期先の解決順:
 
 1. `scaffolding.config.ts` の `minecraft.path`
 2. ユーザー設定の edition 別 default path
-3. OS ごとの自動検出
+3. Windows の edition 別既定パス
 
-`init` 時もユーザー設定の default path を同期先候補として表示し、候補が1件の場合は入力欄の default として表示する。
+Windows の既定パス:
+
+```text
+%APPDATA%\Minecraft Bedrock\Users\Shared\games\com.mojang\development_behavior_packs
+%APPDATA%\Minecraft Bedrock Preview\Users\Shared\games\com.mojang\development_behavior_packs
+```
+
+`init` 時もユーザー設定と Windows 既定パスを同期先候補として表示し、候補が1件の場合は入力欄の default として表示する。
 
 ## 設定ファイル案
 
@@ -184,7 +197,7 @@ export default {
   build: {
     behaviorDir: "behavior",
     minify: false,
-    sourcemap: false,
+    sourcemap: true,
   },
 };
 ```
@@ -203,6 +216,9 @@ my-addon/
     entities/
   package.json
   tsconfig.json
+  .vscode/
+    launch.json
+    tasks.json
   scaffolding.config.ts
 ```
 
@@ -216,6 +232,8 @@ my-addon/
     manifest.json
     scripts/
       main.js
+    debug/
+      main.js.map
     functions/
     entities/
 ```
@@ -242,9 +260,9 @@ com.mojang/
 - 対応 OS は Windows と Linux を MVP 対象にする
 - Minecraft Preview は、通常版と同期先パスが違う対象として MVP から対応する
 - `init` は対話式を基本にする
-- 同期先は自動検出を優先し、検出できない場合は設定ファイルで明示できるようにする
+- 同期先は Windows の既定パスをデフォルトとして使い、必要なら設定ファイルで明示できるようにする
 - ユーザー単位の default path を `mc-scaffolding config set-path` で設定できる
-- 同期先は `scaffolding.config.ts` の `minecraft.path`、ユーザー設定、OS 自動検出の順で解決する
+- 同期先は `scaffolding.config.ts` の `minecraft.path`、ユーザー設定、Windows の edition 別既定パスの順で解決する
 - `init` の同期先入力では、ユーザー設定の default path を入力欄の default として表示する
 - `manifest.json` の UUID は `init` 時に自動生成する
 - `@minecraft/server` は安定版の最新をデフォルトで解決し、必要なら `init` で選択できるようにする
@@ -272,10 +290,12 @@ com.mojang/
 - Script API の entry point はまず `scripts/main.js` 固定で始める
 - ビルド出力は 1 つの JavaScript ファイルをデフォルトにする
 - Behavior Pack の静的ファイルは `behavior/` をデフォルト入力ディレクトリとする
-- sourcemap などの追加出力は設定で切り替え可能にする
-- 通常版と Preview の両方が見つかった場合はユーザーに選ばせる
+- `init` で VS Code Minecraft Bedrock Edition Debugger 向けの `.vscode/launch.json` と `preLaunchTask` 用 `.vscode/tasks.json` を生成する
+- `launch.json` では `sourceMapRoot` を `${workspaceFolder}/dist/debug/`、`generatedSourceRoot` を `${workspaceFolder}/dist/scripts/` にする
+- `init` で生成する設定では sourcemap を有効にし、既存設定では sourcemap などの追加出力を設定で切り替え可能にする
+- 通常版と Preview の両方の既定パス候補がある場合はユーザーに選ばせる
 - 通常版と Preview のどちらを選んだかは `scaffolding.config.ts` に保存する
-- WSL から Windows 側パスを自動検出する処理は MVP では入れない
+- WSL や Linux launcher のパス自動検出は MVP では入れない
 - `dev` の同期は mirror sync とし、削除されたファイルは同期先からも削除する
 - mirror sync の削除対象除外は MVP では用意しない
 - `build` はビルド後の同期まで含める
@@ -285,12 +305,12 @@ com.mojang/
 - `dev` は build error 時も watch を継続し、次の保存で再試行する
 - パッケージ名とコマンド名は `mc-scaffolding` とする
 - 設定ファイル名は `scaffolding.config.ts` とする
-- 同期先の自動検出に失敗した場合は、`init` 中に手入力させる
+- 同期先の既定パス候補がない場合は、`init` 中に手入力させる
 - `init` 後は `npm install` まで自動実行する
 - `init` は空ディレクトリでの実行を前提とし、既存プロジェクトへの追加は MVP では扱わない
 - package manager は npm 固定とし、pnpm / yarn の選択は MVP では扱わない
 - `init` 時に生成予定のファイルと同名のファイルが既に存在する場合は、上書きせずエラーで止める
-- VS Code 向けの `.vscode/settings.json` や `.vscode/tasks.json` は MVP では生成しない
+- VS Code 向けの `.vscode/launch.json` と `.vscode/tasks.json` は MVP で生成する
 
 ## 未確定事項
 
@@ -300,8 +320,8 @@ Minecraft Bedrock の実フォルダパスは OS ごとに違う。
 
 決定:
 
-- MVP では Windows と Linux をサポートする
-- WSL から Windows 側の Minecraft フォルダへ同期する利用を考慮する
+- MVP では Windows の Bedrock / Preview 既定パスをサポートする
+- WSL や Linux launcher の同期先は `minecraft.path` または `mc-scaffolding config set-path` で明示する
 
 決める必要があること:
 
@@ -338,13 +358,14 @@ Script API は Minecraft のバージョンや module version に影響される
 
 決定:
 
-- 同期先は自動検出を優先する
-- 自動検出できない場合や WSL のような特殊環境では、`scaffolding.config.ts` で明示できるようにする
-- 自動検出に失敗した場合は、`init` 中に同期先パスを手入力させる
+- 同期先は明示設定を優先し、明示設定がなければ Windows の既定パスを使う
+- Windows の Bedrock / Preview 既定パスを候補にする
+- WSL や Linux launcher のような特殊環境では、`scaffolding.config.ts` かユーザー設定で明示できるようにする
+- 既定パス候補がない場合は、`init` 中に同期先パスを手入力させる
 
 決める必要があること:
 
-- 自動検出で見つかった候補を、設定ファイルへ保存する導線を用意するか
+- init 中に入力したパスを、ユーザー設定へ保存する導線を用意するか
 
 ### バンドルの仕様
 

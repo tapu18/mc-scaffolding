@@ -1,4 +1,3 @@
-import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { CliError } from "./errors.js";
@@ -7,14 +6,8 @@ import type { MinecraftEdition, MinecraftPathCandidate, ScaffoldingConfig } from
 
 const developmentBehaviorPacks = "development_behavior_packs";
 
-export async function detectMinecraftPaths(): Promise<MinecraftPathCandidate[]> {
-  const candidates = getCandidatePaths();
-  return Promise.all(
-    candidates.map(async (candidate) => ({
-      ...candidate,
-      exists: await pathExists(candidate.path),
-    })),
-  );
+export function getDefaultMinecraftPathCandidates(): MinecraftPathCandidate[] {
+  return getCandidatePaths();
 }
 
 export async function resolveMinecraftPath(config: ScaffoldingConfig): Promise<string> {
@@ -27,16 +20,15 @@ export async function resolveMinecraftPath(config: ScaffoldingConfig): Promise<s
     return path.resolve(defaultPath);
   }
 
-  const candidates = (await detectMinecraftPaths()).filter(
-    (candidate) => candidate.edition === config.minecraft.edition && candidate.exists,
+  const candidate = getDefaultMinecraftPathCandidates().find(
+    (candidate) => candidate.edition === config.minecraft.edition,
   );
-
-  if (candidates.length > 0) {
-    return candidates[0]!.path;
+  if (candidate) {
+    return path.resolve(candidate.path);
   }
 
   throw new CliError(
-    `Could not detect Minecraft ${config.minecraft.edition} development_behavior_packs path. Set minecraft.path in scaffolding.config.ts or run mc-scaffolding config set-path.`,
+    `Could not resolve Minecraft ${config.minecraft.edition} development_behavior_packs path. Set minecraft.path in scaffolding.config.ts or run mc-scaffolding config set-path.`,
   );
 }
 
@@ -44,72 +36,43 @@ function getCandidatePaths(): MinecraftPathCandidate[] {
   const candidates: MinecraftPathCandidate[] = [];
 
   if (process.platform === "win32") {
-    const localAppData = process.env.LOCALAPPDATA;
-    if (localAppData) {
+    const appData = process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming");
+    if (appData) {
       candidates.push(
-        windowsCandidate(
+        candidate(
           "bedrock",
-          localAppData,
-          "Microsoft.MinecraftUWP_8wekyb3d8bbwe",
+          path.join(
+            appData,
+            "Minecraft Bedrock",
+            "Users",
+            "Shared",
+            "games",
+            "com.mojang",
+            developmentBehaviorPacks,
+          ),
           "Minecraft Bedrock",
         ),
-        windowsCandidate(
+        candidate(
           "preview",
-          localAppData,
-          "Microsoft.MinecraftWindowsBeta_8wekyb3d8bbwe",
+          path.join(
+            appData,
+            "Minecraft Bedrock Preview",
+            "Users",
+            "Shared",
+            "games",
+            "com.mojang",
+            developmentBehaviorPacks,
+          ),
           "Minecraft Preview",
         ),
       );
     }
   }
 
-  if (process.platform === "linux") {
-    const home = os.homedir();
-    candidates.push(
-      linuxCandidate(
-        "bedrock",
-        path.join(home, ".local/share/mcpelauncher/games/com.mojang", developmentBehaviorPacks),
-        "mcpelauncher Bedrock",
-      ),
-      linuxCandidate(
-        "preview",
-        path.join(home, ".local/share/mcpelauncher-preview/games/com.mojang", developmentBehaviorPacks),
-        "mcpelauncher Preview",
-      ),
-      linuxCandidate(
-        "bedrock",
-        path.join(home, ".var/app/io.mrarm.mcpelauncher/data/mcpelauncher/games/com.mojang", developmentBehaviorPacks),
-        "Flatpak mcpelauncher Bedrock",
-      ),
-    );
-  }
-
   return candidates;
 }
 
-function windowsCandidate(
-  edition: MinecraftEdition,
-  localAppData: string,
-  packageDir: string,
-  label: string,
-): MinecraftPathCandidate {
-  return {
-    edition,
-    label,
-    path: path.join(
-      localAppData,
-      "Packages",
-      packageDir,
-      "LocalState",
-      "games",
-      "com.mojang",
-      developmentBehaviorPacks,
-    ),
-    exists: false,
-  };
-}
-
-function linuxCandidate(
+function candidate(
   edition: MinecraftEdition,
   candidatePath: string,
   label: string,
@@ -118,15 +81,6 @@ function linuxCandidate(
     edition,
     label,
     path: candidatePath,
-    exists: false,
+    exists: true,
   };
-}
-
-async function pathExists(candidatePath: string): Promise<boolean> {
-  try {
-    await fs.access(candidatePath);
-    return true;
-  } catch {
-    return false;
-  }
 }

@@ -8,7 +8,7 @@ import { checkbox, confirm, input, select } from "@inquirer/prompts";
 import { behaviorSourceDir, configFileName } from "./config.js";
 import { CliError, assertCli } from "./errors.js";
 import { writeManifest } from "./manifest.js";
-import { detectMinecraftPaths } from "./minecraft-paths.js";
+import { getDefaultMinecraftPathCandidates } from "./minecraft-paths.js";
 import {
   getMinecraftModuleChoices,
   toManifestModuleVersion,
@@ -45,6 +45,8 @@ const generatedFiles = [
   "tsconfig.json",
   path.join("src", "main.ts"),
   behaviorSourceDir,
+  path.join(".vscode", "launch.json"),
+  path.join(".vscode", "tasks.json"),
   configFileName,
   ".gitignore",
 ];
@@ -59,12 +61,15 @@ export async function initProject(projectDir: string): Promise<void> {
   await Promise.all([
     fs.mkdir(path.join(projectDir, "src"), { recursive: true }),
     fs.mkdir(path.join(projectDir, behaviorSourceDir), { recursive: true }),
+    fs.mkdir(path.join(projectDir, ".vscode"), { recursive: true }),
   ]);
   await Promise.all([
     fs.writeFile(path.join(projectDir, "package.json"), createPackageJson(answers, modules)),
     fs.writeFile(path.join(projectDir, "tsconfig.json"), createTsconfigJson()),
     fs.writeFile(path.join(projectDir, "src", "main.ts"), createMainTs()),
     fs.writeFile(path.join(projectDir, configFileName), createConfigTs(projectConfig)),
+    fs.writeFile(path.join(projectDir, ".vscode", "launch.json"), createLaunchJson(projectConfig)),
+    fs.writeFile(path.join(projectDir, ".vscode", "tasks.json"), createTasksJson()),
     writeManifest(path.join(projectDir, behaviorSourceDir, "manifest.json"), projectConfig),
     fs.writeFile(path.join(projectDir, ".gitignore"), createGitignore()),
   ]);
@@ -103,9 +108,8 @@ async function promptForInit(projectDir: string): Promise<InitAnswers> {
   });
 
   const pathCandidates = await getInitMinecraftPathCandidates();
-  const existingCandidates = pathCandidates.filter((candidate) => candidate.exists);
-  const edition = await promptEdition(existingCandidates);
-  const minecraftPath = await promptMinecraftPath(existingCandidates, edition);
+  const edition = await promptEdition(pathCandidates);
+  const minecraftPath = await promptMinecraftPath(pathCandidates, edition);
   const allowBetaApis = await promptAllowBetaApis();
   const moduleVersionPolicy = { edition, allowBetaApis };
   const serverVersion = await promptServerVersion(moduleVersionPolicy);
@@ -125,17 +129,14 @@ async function promptForInit(projectDir: string): Promise<InitAnswers> {
 }
 
 async function getInitMinecraftPathCandidates(): Promise<MinecraftPathCandidate[]> {
-  const [detectedCandidates, userConfig] = await Promise.all([
-    detectMinecraftPaths(),
-    loadUserConfig(),
-  ]);
+  const userConfig = await loadUserConfig();
   const userCandidates = Object.entries(userConfig.minecraft ?? {}).map(([edition, configuredPath]) => ({
     edition: edition as MinecraftEdition,
     label: `Configured ${edition}`,
     path: configuredPath,
     exists: true,
   }));
-  return dedupePathCandidates([...userCandidates, ...detectedCandidates]);
+  return dedupePathCandidates([...userCandidates, ...getDefaultMinecraftPathCandidates()]);
 }
 
 function dedupePathCandidates(candidates: MinecraftPathCandidate[]): MinecraftPathCandidate[] {
@@ -381,11 +382,53 @@ function createConfigTs(config: ScaffoldingConfig): string {
   },
   build: {
     behaviorDir: ${JSON.stringify(config.build?.behaviorDir ?? behaviorSourceDir)},
-    minify: false,
-    sourcemap: false,
+    minify: ${JSON.stringify(config.build?.minify ?? false)},
+    sourcemap: ${JSON.stringify(config.build?.sourcemap ?? false)},
   },
 };
 `;
+}
+
+function createLaunchJson(config: ScaffoldingConfig): string {
+  return `${JSON.stringify(
+    {
+      version: "0.3.0",
+      configurations: [
+        {
+          type: "minecraft-js",
+          request: "attach",
+          name: "Debug with Minecraft",
+          mode: "connect",
+          preLaunchTask: "build",
+          targetModuleUuid: config.manifest.moduleUuid,
+          sourceMapRoot: "${workspaceFolder}/dist/debug/",
+          generatedSourceRoot: "${workspaceFolder}/dist/scripts/",
+          port: 19144,
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+function createTasksJson(): string {
+  return `${JSON.stringify(
+    {
+      version: "2.0.0",
+      tasks: [
+        {
+          label: "build",
+          type: "npm",
+          script: "build",
+          group: "build",
+          problemMatcher: "$tsc",
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`;
 }
 
 function createProjectConfig(answers: InitAnswers, modules: ScriptApiModule[]): ScaffoldingConfig {
@@ -410,7 +453,7 @@ function createProjectConfig(answers: InitAnswers, modules: ScriptApiModule[]): 
     build: {
       behaviorDir: behaviorSourceDir,
       minify: false,
-      sourcemap: false,
+      sourcemap: true,
     },
   };
 }

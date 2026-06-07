@@ -18,6 +18,7 @@ export async function buildProject(
   const distDir = path.join(projectDir, internalOutDir);
   const entry = path.resolve(projectDir, config.entry ?? "src/main.ts");
   const scriptOutfile = path.join(distDir, "scripts", "main.js");
+  const debugSourcemapOutfile = path.join(distDir, "debug", "main.js.map");
   const behaviorDir = resolveBehaviorDir(projectDir, config.build?.behaviorDir ?? behaviorSourceDir);
 
   await assertBehaviorDir(behaviorDir);
@@ -25,18 +26,7 @@ export async function buildProject(
   await copyBehaviorFiles(behaviorDir, distDir);
   await fs.mkdir(path.dirname(scriptOutfile), { recursive: true });
 
-  await esbuild({
-    entryPoints: [entry],
-    outfile: scriptOutfile,
-    bundle: true,
-    format: "esm",
-    platform: "neutral",
-    target: "es2020",
-    external: ["@minecraft/*"],
-    minify: config.build?.minify ?? false,
-    sourcemap: config.build?.sourcemap ?? false,
-    logLevel: "silent",
-  });
+  await buildScript(entry, scriptOutfile, debugSourcemapOutfile, config);
 
   if (!options.sync) {
     return { distDir };
@@ -46,6 +36,72 @@ export async function buildProject(
     distDir,
     syncedTo: await syncPack(projectDir, config),
   };
+}
+
+async function buildScript(
+  entry: string,
+  scriptOutfile: string,
+  debugSourcemapOutfile: string,
+  config: ScaffoldingConfig,
+): Promise<void> {
+  const sourcemap = config.build?.sourcemap ?? false;
+  const result = await esbuild({
+    entryPoints: [entry],
+    outfile: scriptOutfile,
+    bundle: true,
+    format: "esm",
+    platform: "neutral",
+    target: "es2020",
+    external: ["@minecraft/*"],
+    minify: config.build?.minify ?? false,
+    sourcemap: sourcemap ? "external" : false,
+    write: false,
+    logLevel: "silent",
+  });
+
+  for (const outputFile of result.outputFiles) {
+    const outputPath = path.resolve(outputFile.path);
+    if (outputPath === path.resolve(scriptOutfile)) {
+      await writeGeneratedScript(scriptOutfile, outputFile.contents, sourcemap ? debugSourcemapOutfile : undefined);
+      continue;
+    }
+
+    if (outputPath === path.resolve(`${scriptOutfile}.map`)) {
+      await writeGeneratedFile(debugSourcemapOutfile, outputFile.contents);
+      continue;
+    }
+
+    await writeGeneratedFile(outputPath, outputFile.contents);
+  }
+
+  assertCli(await pathExists(scriptOutfile), "esbuild did not emit scripts/main.js.");
+  if (sourcemap) {
+    assertCli(await pathExists(debugSourcemapOutfile), "esbuild did not emit debug/main.js.map.");
+  }
+}
+
+async function writeGeneratedScript(
+  scriptOutfile: string,
+  contents: Uint8Array,
+  sourcemapOutfile?: string,
+): Promise<void> {
+  if (!sourcemapOutfile) {
+    await writeGeneratedFile(scriptOutfile, contents);
+    return;
+  }
+
+  const sourceMappingUrl = toPosixPath(path.relative(path.dirname(scriptOutfile), sourcemapOutfile));
+  const script = `${Buffer.from(contents).toString("utf8")}\n//# sourceMappingURL=${sourceMappingUrl}\n`;
+  await writeGeneratedFile(scriptOutfile, script);
+}
+
+async function writeGeneratedFile(outfile: string, contents: string | Uint8Array): Promise<void> {
+  await fs.mkdir(path.dirname(outfile), { recursive: true });
+  await fs.writeFile(outfile, contents);
+}
+
+function toPosixPath(candidatePath: string): string {
+  return candidatePath.split(path.sep).join("/");
 }
 
 async function copyBehaviorFiles(behaviorDir: string, distDir: string): Promise<void> {
