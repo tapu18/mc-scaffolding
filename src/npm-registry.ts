@@ -16,6 +16,8 @@ const additionalScriptApiModuleCandidates = [
   "@minecraft/server-admin",
   "@minecraft/server-net",
   "@minecraft/server-editor",
+  "@minecraft/server-graphics",
+  "@minecraft/common",
   "@minecraft/debug-utilities",
   "@minecraft/diagnostics",
 ];
