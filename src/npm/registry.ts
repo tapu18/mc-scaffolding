@@ -1,7 +1,7 @@
-import { CliError } from "./errors.js";
-import { toManifestModuleVersion } from "./manifest-version.js";
+import { toManifestModuleVersion } from "../minecraft/manifest-version.js";
+import { CliError } from "../shared/errors.js";
 import { isStableVersion, sortSemverDesc } from "./semver.js";
-import type { MinecraftEdition, ScriptApiModule } from "./types.js";
+import type { MinecraftEdition, ScriptApiModule } from "../shared/types.js";
 
 interface Packument {
   name: string;

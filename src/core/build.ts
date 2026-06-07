@@ -3,9 +3,9 @@ import path from "node:path";
 import { build as esbuild } from "esbuild";
 import { resolveExistingBehaviorDir } from "./behavior.js";
 import { behaviorSourceDir, internalOutDir } from "./config.js";
-import { assertCli } from "./errors.js";
+import { assertCli } from "../shared/errors.js";
 import { syncPack } from "./sync.js";
-import type { ScaffoldingConfig } from "./types.js";
+import type { ScaffoldingConfig } from "../shared/types.js";
 
 export interface BuildOptions {
   sync: boolean;

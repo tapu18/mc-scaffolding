@@ -2,9 +2,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { resolveExistingBehaviorDir } from "./behavior.js";
 import { behaviorSourceDir, internalOutDir } from "./config.js";
-import { assertCli } from "./errors.js";
-import { resolveMinecraftPath } from "./minecraft-paths.js";
-import type { ScaffoldingConfig } from "./types.js";
+import { assertCli } from "../shared/errors.js";
+import { resolveMinecraftPath } from "../minecraft/paths.js";
+import type { ScaffoldingConfig } from "../shared/types.js";
 
 export async function syncPack(projectDir: string, config: ScaffoldingConfig): Promise<string> {
   const distDir = path.join(projectDir, internalOutDir);

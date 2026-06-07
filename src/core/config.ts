@@ -1,7 +1,7 @@
 import path from "node:path";
 import { createJiti } from "jiti";
-import { assertCli } from "./errors.js";
-import type { ScaffoldingConfig } from "./types.js";
+import { assertCli } from "../shared/errors.js";
+import type { ScaffoldingConfig } from "../shared/types.js";
 
 export const configFileName = "scaffolding.config.ts";
 export const internalOutDir = "dist";

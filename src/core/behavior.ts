@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { behaviorSourceDir, internalOutDir } from "./config.js";
-import { assertCli } from "./errors.js";
+import { assertCli } from "../shared/errors.js";
 
 export function resolveBehaviorDir(projectDir: string, behaviorDir: string): string {
   assertCli(behaviorDir.trim().length > 0, "build.behaviorDir must not be empty.");

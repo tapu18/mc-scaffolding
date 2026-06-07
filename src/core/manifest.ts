@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { toManifestModuleVersion } from "./manifest-version.js";
-import type { ScaffoldingConfig } from "./types.js";
+import { toManifestModuleVersion } from "../minecraft/manifest-version.js";
+import type { ScaffoldingConfig } from "../shared/types.js";
 
 interface BedrockManifest {
   format_version: 2;
