@@ -1,7 +1,8 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { behaviorSourceDir } from "../core/config.js";
+import { CliError } from "../shared/errors.js";
 import type { ScaffoldingConfig, ScriptApiModule } from "../shared/types.js";
 import type { InitAnswers } from "./prompts.js";
 
@@ -147,11 +148,11 @@ export function sanitizePackageName(value: string): string {
 function getOwnDependencySpecifier(): string {
   const packageRoot = findPackageRoot(fileURLToPath(import.meta.url));
   if (!packageRoot) {
-    return "^0.1.0";
+    throw new CliError("Could not locate mc-scaffolding package root.");
   }
 
   if (path.basename(path.dirname(packageRoot)) === "node_modules") {
-    return "^0.1.0";
+    return `^${readPackageVersion(packageRoot)}`;
   }
 
   return `file:${packageRoot}`;
@@ -168,4 +169,14 @@ function findPackageRoot(startFile: string): string | undefined {
   }
 
   return undefined;
+}
+
+function readPackageVersion(packageRoot: string): string {
+  const packageJsonPath = path.join(packageRoot, "package.json");
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { version?: unknown };
+  if (typeof packageJson.version === "string" && packageJson.version.length > 0) {
+    return packageJson.version;
+  }
+
+  throw new CliError("Could not read mc-scaffolding package version.");
 }
