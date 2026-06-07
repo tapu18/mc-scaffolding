@@ -1,12 +1,17 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { internalOutDir } from "./config.js";
+import { resolveExistingBehaviorDir } from "./behavior.js";
+import { behaviorSourceDir, internalOutDir } from "./config.js";
 import { assertCli } from "./errors.js";
 import { resolveMinecraftPath } from "./minecraft-paths.js";
 import type { ScaffoldingConfig } from "./types.js";
 
 export async function syncPack(projectDir: string, config: ScaffoldingConfig): Promise<string> {
   const distDir = path.join(projectDir, internalOutDir);
+  const behaviorDir = await resolveExistingBehaviorDir(
+    projectDir,
+    config.build?.behaviorDir ?? behaviorSourceDir,
+  );
   const minecraftPath = path.resolve(await resolveMinecraftPath(config));
   const packName = config.minecraft.packName ?? config.name;
   const targetDir = resolveSyncTarget(minecraftPath, packName);
@@ -15,9 +20,29 @@ export async function syncPack(projectDir: string, config: ScaffoldingConfig): P
 
   await fs.mkdir(minecraftPath, { recursive: true });
   await fs.rm(targetDir, { recursive: true, force: true });
-  await fs.cp(distDir, targetDir, { recursive: true });
+  await fs.cp(behaviorDir, targetDir, { recursive: true });
+  await copyGeneratedOutput(distDir, targetDir);
 
   return targetDir;
+}
+
+async function copyGeneratedOutput(distDir: string, targetDir: string): Promise<void> {
+  await copyGeneratedDirectory(distDir, targetDir, "scripts", { required: true });
+  await copyGeneratedDirectory(distDir, targetDir, "debug", { required: false });
+}
+
+async function copyGeneratedDirectory(
+  distDir: string,
+  targetDir: string,
+  relativeDir: string,
+  options: { required: boolean },
+): Promise<void> {
+  const sourceDir = path.join(distDir, relativeDir);
+  if (!(await pathExists(sourceDir))) {
+    assertCli(!options.required, `dist/${relativeDir} does not exist. Run build first.`);
+    return;
+  }
+  await fs.cp(sourceDir, path.join(targetDir, relativeDir), { recursive: true });
 }
 
 function resolveSyncTarget(minecraftPath: string, packName: string): string {

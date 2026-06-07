@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { build as esbuild } from "esbuild";
+import { resolveExistingBehaviorDir } from "./behavior.js";
 import { behaviorSourceDir, internalOutDir } from "./config.js";
 import { assertCli } from "./errors.js";
 import { syncPack } from "./sync.js";
@@ -19,11 +20,9 @@ export async function buildProject(
   const entry = path.resolve(projectDir, config.entry ?? "src/main.ts");
   const scriptOutfile = path.join(distDir, "scripts", "main.js");
   const debugSourcemapOutfile = path.join(distDir, "debug", "main.js.map");
-  const behaviorDir = resolveBehaviorDir(projectDir, config.build?.behaviorDir ?? behaviorSourceDir);
 
-  await assertBehaviorDir(behaviorDir);
+  await resolveExistingBehaviorDir(projectDir, config.build?.behaviorDir ?? behaviorSourceDir);
   await fs.rm(distDir, { recursive: true, force: true });
-  await copyBehaviorFiles(behaviorDir, distDir);
   await fs.mkdir(path.dirname(scriptOutfile), { recursive: true });
 
   await buildScript(entry, scriptOutfile, debugSourcemapOutfile, config);
@@ -112,44 +111,6 @@ async function writeGeneratedFile(outfile: string, contents: string | Uint8Array
 
 function toPosixPath(candidatePath: string): string {
   return candidatePath.split(path.sep).join("/");
-}
-
-async function copyBehaviorFiles(behaviorDir: string, distDir: string): Promise<void> {
-  await fs.cp(behaviorDir, distDir, { recursive: true });
-}
-
-async function assertBehaviorDir(behaviorDir: string): Promise<void> {
-  assertCli(await pathExists(behaviorDir), "build.behaviorDir does not exist.");
-  const behaviorStat = await fs.stat(behaviorDir);
-  assertCli(behaviorStat.isDirectory(), "build.behaviorDir must point to a directory.");
-}
-
-function resolveBehaviorDir(projectDir: string, behaviorDir: string): string {
-  assertCli(behaviorDir.trim().length > 0, "build.behaviorDir must not be empty.");
-  assertCli(!path.isAbsolute(behaviorDir), "build.behaviorDir must be relative to the project directory.");
-
-  const resolvedProjectDir = path.resolve(projectDir);
-  const resolvedBehaviorDir = path.resolve(resolvedProjectDir, behaviorDir);
-  const relativeBehaviorDir = path.relative(resolvedProjectDir, resolvedBehaviorDir);
-
-  assertCli(
-    relativeBehaviorDir !== "" &&
-      !isOutsidePath(relativeBehaviorDir) &&
-      !path.isAbsolute(relativeBehaviorDir),
-    "build.behaviorDir must resolve inside the project directory.",
-  );
-
-  const relativeOutDir = path.relative(path.resolve(resolvedProjectDir, internalOutDir), resolvedBehaviorDir);
-  assertCli(
-    isOutsidePath(relativeOutDir) || path.isAbsolute(relativeOutDir),
-    "build.behaviorDir must not be inside dist.",
-  );
-
-  return resolvedBehaviorDir;
-}
-
-function isOutsidePath(relativePath: string): boolean {
-  return relativePath === ".." || relativePath.startsWith(`..${path.sep}`);
 }
 
 async function pathExists(candidatePath: string): Promise<boolean> {

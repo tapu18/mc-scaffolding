@@ -174,10 +174,7 @@ async function promptMinEngineVersion(): Promise<VersionTuple> {
 }
 
 async function promptEdition(candidates: MinecraftPathCandidate[]): Promise<MinecraftEdition> {
-  const editions = new Set(candidates.map((candidate) => candidate.edition));
-  if (editions.size === 1) {
-    return [...editions][0]!;
-  }
+  const defaultEdition = candidates.find((candidate) => candidate.exists)?.edition ?? "bedrock";
 
   return select<MinecraftEdition>({
     message: "Minecraft edition",
@@ -185,7 +182,7 @@ async function promptEdition(candidates: MinecraftPathCandidate[]): Promise<Mine
       { name: "Minecraft Bedrock", value: "bedrock" },
       { name: "Minecraft Preview", value: "preview" },
     ],
-    default: "bedrock",
+    default: defaultEdition,
   });
 }
 

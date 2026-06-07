@@ -87,9 +87,9 @@ beta API を許可した場合の npm package version は、通常版 Minecraft 
 
 TypeScript をビルドし、Behavior Pack として配置できる成果物を作る。
 
-`behavior/` は Behavior Pack の静的入力ディレクトリとして扱い、build 時に `dist/` へコピーする。
+`behavior/` は Behavior Pack の静的入力ディレクトリとして扱い、build 時には `dist/` へコピーしない。
 
-`behavior/manifest.json` は `init` 時に生成し、build 時には再生成しない。以降は `behavior/` 配下の他のファイルと同じく、ユーザーが編集した内容をそのまま `dist/` へコピーする。
+`behavior/manifest.json` は `init` 時に生成し、build 時には再生成しない。以降は `behavior/` 配下の他のファイルと同じく、ユーザーが編集した内容を同期時に Minecraft の開発用 Behavior Pack フォルダへコピーする。
 
 debug 用 sourcemap が有効な場合、生成 JavaScript は `dist/scripts/`、sourcemap は `dist/debug/` に分けて出力する。
 
@@ -101,18 +101,15 @@ MVP では、ビルド後に Minecraft Bedrock の開発用 Behavior Pack フォ
 
 ```text
 dist/
-  manifest.json
   scripts/
     main.js
   debug/
     main.js.map
-  functions/
-  entities/
 ```
 
 ### `mc-scaffolding sync`
 
-ビルド済みの成果物を Minecraft Bedrock の開発用 Behavior Pack フォルダへコピーする。
+`behavior/` の静的ファイルと `dist/` の生成済み script/debug を Minecraft Bedrock の開発用 Behavior Pack フォルダへコピーする。
 
 `build` は同期まで含むため、`sync` は「再ビルドせずに現在の `dist` を同期したい」場合の補助コマンドとする。
 
@@ -222,23 +219,20 @@ my-addon/
   scaffolding.config.ts
 ```
 
-`behavior/` はユーザーが管理する Behavior Pack の静的ファイル置き場とする。`behavior/manifest.json` は `init` 時に `scaffolding.config.ts` と対話入力を元に生成し、その後はユーザーが直接編集できる入力ファイルとして扱う。build 時には `behavior/` 全体を `dist/` へコピーする。
+`behavior/` はユーザーが管理する Behavior Pack の静的ファイル置き場とする。`behavior/manifest.json` は `init` 時に `scaffolding.config.ts` と対話入力を元に生成し、その後はユーザーが直接編集できる入力ファイルとして扱う。build 時には `behavior/` 全体を `dist/` へコピーせず、同期時に Minecraft の開発用 Behavior Pack フォルダへ直接コピーする。
 
 ビルド後:
 
 ```text
 my-addon/
   dist/
-    manifest.json
     scripts/
       main.js
     debug/
       main.js.map
-    functions/
-    entities/
 ```
 
-`dist` は Minecraft フォルダそのものではなく、`behavior/` の静的ファイルと生成済み script/manifest を組み合わせた Behavior Pack を一時的に組み立てる作業用出力先とする。通常の開発では、`dist` の内容を Minecraft の `development_behavior_packs` へ mirror sync する。
+`dist` は Minecraft フォルダそのものではなく、生成済み script/debug を置く作業用出力先とする。通常の開発では、`behavior/` と `dist/` の内容を Minecraft の `development_behavior_packs` へ mirror sync する。
 
 同期後:
 
@@ -295,14 +289,14 @@ com.mojang/
 - `launch.json` では `sourceMapRoot` を `${workspaceFolder}/dist/debug/`、`generatedSourceRoot` を `${workspaceFolder}/dist/scripts/` にする
 - `dist/debug/main.js.map` には `file: "../scripts/main.js"` を出力し、生成 JS と sourcemap の対応を明示する
 - `init` で生成する設定では sourcemap を有効にし、既存設定では sourcemap などの追加出力を設定で切り替え可能にする
-- 通常版と Preview の両方の既定パス候補がある場合はユーザーに選ばせる
+- `init` では通常版と Preview のどちらを使うか必ずユーザーに選ばせる
 - 通常版と Preview のどちらを選んだかは `scaffolding.config.ts` に保存する
 - WSL や Linux launcher のパス自動検出は MVP では入れない
 - `dev` の同期は mirror sync とし、削除されたファイルは同期先からも削除する
 - mirror sync の削除対象除外は MVP では用意しない
 - `build` はビルド後の同期まで含める
 - 同期しないビルド用に `build --no-sync` を用意する
-- `dist` は内部的な作業用出力先として固定し、ユーザー設定では Minecraft 同期先だけを扱う
+- `dist` は生成済み script/debug の作業用出力先として固定し、ユーザー設定では Minecraft 同期先だけを扱う
 - `dev` は起動時に一度 build/sync してから watch に入る
 - `dev` は build error 時も watch を継続し、次の保存で再試行する
 - パッケージ名とコマンド名は `mc-scaffolding` とする
