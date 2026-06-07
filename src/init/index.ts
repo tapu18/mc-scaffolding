@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { behaviorSourceDir, configFileName } from "../core/config.js";
-import { writeManifest } from "../core/manifest.js";
+import { writeManifest, type ManifestDefinition } from "../core/manifest.js";
 import { toManifestModuleVersion } from "../minecraft/manifest-version.js";
 import { assertCli } from "../shared/errors.js";
 import type { ScaffoldingConfig, ScriptApiModule } from "../shared/types.js";
@@ -34,7 +34,8 @@ export async function initProject(projectDir: string): Promise<void> {
 
   const answers = await promptForInit(projectDir);
   const modules = await resolveModules(answers);
-  const projectConfig = createProjectConfig(answers, modules);
+  const manifestDefinition = createManifestDefinition(answers, modules);
+  const projectConfig = createProjectConfig(answers);
 
   await Promise.all([
     fs.mkdir(path.join(projectDir, "src"), { recursive: true }),
@@ -46,9 +47,9 @@ export async function initProject(projectDir: string): Promise<void> {
     fs.writeFile(path.join(projectDir, "tsconfig.json"), createTsconfigJson()),
     fs.writeFile(path.join(projectDir, "src", "main.ts"), createMainTs()),
     fs.writeFile(path.join(projectDir, configFileName), createConfigTs(projectConfig)),
-    fs.writeFile(path.join(projectDir, ".vscode", "launch.json"), createLaunchJson(projectConfig)),
+    fs.writeFile(path.join(projectDir, ".vscode", "launch.json"), createLaunchJson(manifestDefinition.moduleUuid)),
     fs.writeFile(path.join(projectDir, ".vscode", "tasks.json"), createTasksJson()),
-    writeManifest(path.join(projectDir, behaviorSourceDir, "manifest.json"), projectConfig),
+    writeManifest(path.join(projectDir, behaviorSourceDir, "manifest.json"), manifestDefinition),
     fs.writeFile(path.join(projectDir, ".gitignore"), createGitignore()),
   ]);
 
@@ -86,20 +87,23 @@ async function resolveModules(answers: InitAnswers): Promise<ScriptApiModule[]> 
   return modules;
 }
 
-function createProjectConfig(answers: InitAnswers, modules: ScriptApiModule[]): ScaffoldingConfig {
+function createManifestDefinition(answers: InitAnswers, modules: ScriptApiModule[]): ManifestDefinition {
+  return {
+    name: answers.name,
+    description: answers.description,
+    uuid: crypto.randomUUID(),
+    moduleUuid: crypto.randomUUID(),
+    version: [1, 0, 0],
+    minEngineVersion: answers.minEngineVersion,
+    modules,
+  };
+}
+
+function createProjectConfig(answers: InitAnswers): ScaffoldingConfig {
   return {
     name: answers.name,
     description: answers.description,
     entry: "src/main.ts",
-    scriptApi: {
-      modules,
-    },
-    manifest: {
-      uuid: crypto.randomUUID(),
-      moduleUuid: crypto.randomUUID(),
-      version: [1, 0, 0] as [number, number, number],
-      minEngineVersion: answers.minEngineVersion,
-    },
     minecraft: {
       edition: answers.edition,
       packName: answers.name,

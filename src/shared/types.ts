@@ -10,15 +10,6 @@ export interface ScaffoldingConfig {
   name: string;
   description?: string;
   entry?: string;
-  scriptApi: {
-    modules: ScriptApiModule[];
-  };
-  manifest: {
-    uuid: string;
-    moduleUuid: string;
-    version?: [number, number, number];
-    minEngineVersion: [number, number, number];
-  };
   minecraft: {
     edition: MinecraftEdition;
     packName?: string;

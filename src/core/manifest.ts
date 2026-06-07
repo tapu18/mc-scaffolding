@@ -1,7 +1,17 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { toManifestModuleVersion } from "../minecraft/manifest-version.js";
-import type { ScaffoldingConfig } from "../shared/types.js";
+import type { ScriptApiModule } from "../shared/types.js";
+
+export interface ManifestDefinition {
+  name: string;
+  description: string;
+  uuid: string;
+  moduleUuid: string;
+  version: [number, number, number];
+  minEngineVersion: [number, number, number];
+  modules: ScriptApiModule[];
+}
 
 interface BedrockManifest {
   format_version: 2;
@@ -25,27 +35,26 @@ interface BedrockManifest {
   }>;
 }
 
-export function createManifest(config: ScaffoldingConfig): BedrockManifest {
-  const version = config.manifest.version ?? [1, 0, 0];
+export function createManifest(definition: ManifestDefinition): BedrockManifest {
   const manifest: BedrockManifest = {
     format_version: 2,
     header: {
-      name: config.name,
-      description: config.description ?? "",
-      uuid: config.manifest.uuid,
-      version,
-      min_engine_version: config.manifest.minEngineVersion,
+      name: definition.name,
+      description: definition.description,
+      uuid: definition.uuid,
+      version: definition.version,
+      min_engine_version: definition.minEngineVersion,
     },
     modules: [
       {
         type: "script",
         language: "javascript",
-        uuid: config.manifest.moduleUuid,
+        uuid: definition.moduleUuid,
         entry: "scripts/main.js",
-        version,
+        version: definition.version,
       },
     ],
-    dependencies: config.scriptApi.modules.map((module) => ({
+    dependencies: definition.modules.map((module) => ({
       module_name: module.name,
       version: module.manifestVersion ?? toManifestModuleVersion(module.version),
     })),
@@ -54,8 +63,8 @@ export function createManifest(config: ScaffoldingConfig): BedrockManifest {
   return manifest;
 }
 
-export async function writeManifest(manifestPath: string, config: ScaffoldingConfig): Promise<string> {
+export async function writeManifest(manifestPath: string, definition: ManifestDefinition): Promise<string> {
   await fs.mkdir(path.dirname(manifestPath), { recursive: true });
-  await fs.writeFile(manifestPath, `${JSON.stringify(createManifest(config), null, 2)}\n`);
+  await fs.writeFile(manifestPath, `${JSON.stringify(createManifest(definition), null, 2)}\n`);
   return manifestPath;
 }

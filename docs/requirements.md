@@ -41,7 +41,7 @@ MVP では空ディレクトリでの実行を前提とする。
 
 `@minecraft/server` は、デフォルトでは安定版の最新を解決して使う。必要に応じて、`init` の対話中に別バージョンを選べるようにする。
 
-`min_engine_version` は Mojang の `bedrock-samples` の最新 `behavior_pack/manifest.json` から取得した値をデフォルトにする。取得に失敗した場合は、ツール内の fallback 値を使う。値は `init` 時に `scaffolding.config.ts` へ固定保存し、build 時にネットワークアクセスはしない。
+`min_engine_version` は Mojang の `bedrock-samples` の最新 `behavior_pack/manifest.json` から取得した値をデフォルトにする。取得に失敗した場合は、ツール内の fallback 値を使う。値は `init` 時に `behavior/manifest.json` へ出力し、build 時にネットワークアクセスはしない。
 
 対話で聞く項目:
 
@@ -166,28 +166,8 @@ export default {
   name: "my-addon",
   description: "My Bedrock Script API addon",
   entry: "src/main.ts",
-  scriptApi: {
-    modules: [
-      {
-        name: "@minecraft/server",
-        version: "2.7.0",
-        manifestVersion: "2.7.0",
-      },
-    ],
-  },
-  manifest: {
-    uuid: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    moduleUuid: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    version: [1, 0, 0],
-    minEngineVersion: [1, 26, 20],
-  },
-  pack: {
-    behavior: true,
-    resource: false,
-  },
   minecraft: {
     edition: "bedrock",
-    target: "development_behavior_packs",
     packName: "my-addon",
     path: undefined,
   },
@@ -199,7 +179,7 @@ export default {
 };
 ```
 
-`scaffolding.config.ts` は `manifest.json` の fields をそのまま持つのではなく、`name`、`description`、`scriptApi.modules` のような抽象化した設定を持つ。Script API 用の module dependency など、Bedrock 側の具体的な manifest 構造はツール側で自動生成する。
+`scaffolding.config.ts` は `manifest.json` の fields を持たない。`manifest.json` は `init` 時に `behavior/manifest.json` として生成し、その後は `behavior/` 配下の通常ファイルとして扱う。
 
 ## プロジェクト構成案
 
@@ -219,7 +199,7 @@ my-addon/
   scaffolding.config.ts
 ```
 
-`behavior/` はユーザーが管理する Behavior Pack の静的ファイル置き場とする。`behavior/manifest.json` は `init` 時に `scaffolding.config.ts` と対話入力を元に生成し、その後はユーザーが直接編集できる入力ファイルとして扱う。build 時には `behavior/` 全体を `dist/` へコピーせず、同期時に Minecraft の開発用 Behavior Pack フォルダへ直接コピーする。
+`behavior/` はユーザーが管理する Behavior Pack の静的ファイル置き場とする。`behavior/manifest.json` は `init` 時に対話入力を元に生成し、その後はユーザーが直接編集できる入力ファイルとして扱う。build 時には `behavior/` 全体を `dist/` へコピーせず、同期時に Minecraft の開発用 Behavior Pack フォルダへ直接コピーする。
 
 ビルド後:
 
@@ -264,11 +244,11 @@ com.mojang/
 - `@minecraft/server` の選択候補は、新しい安定版を数件と最新ベータを表示する
 - `manifest.json` の `min_engine_version` は必ず出力する
 - `min_engine_version` は `init` 時に Mojang `bedrock-samples` の raw manifest から取得し、失敗時は fallback 値を使う
-- `min_engine_version` は `scaffolding.config.ts` に固定保存し、build 時にはネットワークアクセスしない
+- `min_engine_version` は `behavior/manifest.json` に出力し、build 時にはネットワークアクセスしない
 - `manifest.json` は `init` 時に設定と対話入力から自動生成し、その後はユーザーが直接管理できるようにする
 - 自動生成された `behavior/manifest.json` は、次回 build 時に上書きしない
-- build は `behavior/manifest.json` を特別扱いせず、`behavior/` 配下の他のファイルと同じように `dist/` へコピーする
-- Script API 用の `manifest.json` module dependency はツール側で自動生成する
+- sync は `behavior/manifest.json` を特別扱いせず、`behavior/` 配下の他のファイルと同じように Minecraft の開発用 Behavior Pack フォルダへコピーする
+- Script API 用の `manifest.json` module dependency は `init` 時だけツール側で自動生成する
 - `@minecraft/server-ui` など、`@minecraft/server` 以外の module dependency も `init` で選べるようにする
 - 追加 module dependency は候補一覧から複数選択できるようにする
 - 追加 module dependency の候補はツール内の既知候補リストから選び、npm registry で存在を確認できたものを表示する
@@ -278,7 +258,7 @@ com.mojang/
 - 通常版 Minecraft Bedrock で beta API を許可した場合、npm package version は `*-stable` suffix を含む beta version を優先する
 - Minecraft Preview で beta API を許可した場合、npm package version は npm の `beta` dist-tag を優先する
 - `manifest.json` の module dependency version は npm package version から manifest 用 module version に正規化し、beta API では `-beta` suffix を保持する
-- `scaffolding.config.ts` は manifest 生値ではなく、抽象化した設定を持つ
+- `scaffolding.config.ts` は manifest 生値や Script API module dependency を持たない
 - author は MVP の `init` では聞かない
 - UUID 再生成コマンドは MVP では用意しない
 - Script API の entry point はまず `scripts/main.js` 固定で始める
@@ -343,8 +323,8 @@ Script API は Minecraft のバージョンや module version に影響される
 
 - `min_engine_version` は必須とする
 - `min_engine_version` は `init` 時に Mojang `bedrock-samples` の raw manifest から取得した値をデフォルトにする
-- `manifest.json` は `init` 時に設定と対話入力から自動生成し、その後はユーザーが編集できる入力ファイルにする
-- Script API 用の module dependency はツール側で自動生成する
+- `manifest.json` は `init` 時に対話入力から自動生成し、その後はユーザーが編集できる入力ファイルにする
+- Script API 用の module dependency は `init` 時だけツール側で自動生成する
 
 決める必要があること:
 

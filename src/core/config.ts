@@ -22,27 +22,6 @@ export async function loadConfig(projectDir: string): Promise<ScaffoldingConfig>
 function validateConfig(config: Partial<ScaffoldingConfig>): asserts config is ScaffoldingConfig {
   assertCli(config && typeof config === "object", `${configFileName} must export a config object.`);
   assertCli(typeof config.name === "string" && config.name.length > 0, "Config requires name.");
-  assertCli(config.scriptApi && Array.isArray(config.scriptApi.modules), "Config requires scriptApi.modules.");
-  for (const [index, module] of config.scriptApi.modules.entries()) {
-    assertScriptApiModule(module, `scriptApi.modules[${index}]`);
-  }
-  assertCli(
-    config.scriptApi.modules.some((module) => module.name === "@minecraft/server"),
-    "Config requires @minecraft/server in scriptApi.modules.",
-  );
-  assertCli(config.manifest && typeof config.manifest.uuid === "string", "Config requires manifest.uuid.");
-  assertCli(
-    config.manifest && typeof config.manifest.moduleUuid === "string",
-    "Config requires manifest.moduleUuid.",
-  );
-  assertCli(
-    config.manifest && Array.isArray(config.manifest.minEngineVersion),
-    "Config requires manifest.minEngineVersion.",
-  );
-  assertVersionTuple(config.manifest.minEngineVersion, "manifest.minEngineVersion");
-  if (config.manifest.version !== undefined) {
-    assertVersionTuple(config.manifest.version, "manifest.version");
-  }
   assertCli(config.minecraft && typeof config.minecraft.edition === "string", "Config requires minecraft.edition.");
   assertCli(
     config.minecraft.edition === "bedrock" || config.minecraft.edition === "preview",
@@ -65,25 +44,6 @@ function validateConfig(config: Partial<ScaffoldingConfig>): asserts config is S
   }
 }
 
-function assertScriptApiModule(module: unknown, pathLabel: string): asserts module is ScaffoldingConfig["scriptApi"]["modules"][number] {
-  assertCli(module && typeof module === "object", `Config ${pathLabel} must be an object.`);
-  const candidate = module as Partial<ScaffoldingConfig["scriptApi"]["modules"][number]>;
-  assertCli(typeof candidate.name === "string" && candidate.name.length > 0, `Config ${pathLabel}.name must be a non-empty string.`);
-  assertCli(typeof candidate.version === "string" && candidate.version.length > 0, `Config ${pathLabel}.version must be a non-empty string.`);
-  if (candidate.manifestVersion !== undefined) {
-    assertCli(typeof candidate.manifestVersion === "string" && candidate.manifestVersion.length > 0, `Config ${pathLabel}.manifestVersion must be a non-empty string.`);
-  }
-}
-
-function assertVersionTuple(value: unknown, pathLabel: string): asserts value is [number, number, number] {
-  assertCli(
-    Array.isArray(value) &&
-      value.length === 3 &&
-      value.every((part) => Number.isInteger(part) && part >= 0),
-    `Config ${pathLabel} must be a three-part non-negative integer array.`,
-  );
-}
-
 function assertBuildConfig(build: NonNullable<ScaffoldingConfig["build"]>): void {
   if (build.behaviorDir !== undefined) {
     assertCli(typeof build.behaviorDir === "string" && build.behaviorDir.length > 0, "Config build.behaviorDir must be a non-empty string.");
@@ -101,10 +61,6 @@ function normalizeConfig(config: ScaffoldingConfig): ScaffoldingConfig {
     ...config,
     description: config.description ?? "",
     entry: config.entry ?? "src/main.ts",
-    manifest: {
-      version: [1, 0, 0],
-      ...config.manifest,
-    },
     minecraft: {
       ...config.minecraft,
       packName: config.minecraft.packName ?? config.name,

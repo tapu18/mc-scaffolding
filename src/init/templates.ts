@@ -57,22 +57,12 @@ system.run(() => {
 }
 
 export function createConfigTs(config: ScaffoldingConfig): string {
-  const minEngineVersion = `[${config.manifest.minEngineVersion.join(", ")}]`;
   const minecraftPath = config.minecraft.path ? JSON.stringify(config.minecraft.path) : "undefined";
 
   return `export default {
   name: ${JSON.stringify(config.name)},
   description: ${JSON.stringify(config.description)},
   entry: ${JSON.stringify(config.entry)},
-  scriptApi: {
-    modules: ${JSON.stringify(config.scriptApi.modules, null, 6).replace(/^/gm, "    ").trim()},
-  },
-  manifest: {
-    uuid: ${JSON.stringify(config.manifest.uuid)},
-    moduleUuid: ${JSON.stringify(config.manifest.moduleUuid)},
-    version: [${config.manifest.version?.join(", ") ?? "1, 0, 0"}],
-    minEngineVersion: ${minEngineVersion},
-  },
   minecraft: {
     edition: ${JSON.stringify(config.minecraft.edition)},
     packName: ${JSON.stringify(config.minecraft.packName)},
@@ -87,7 +77,7 @@ export function createConfigTs(config: ScaffoldingConfig): string {
 `;
 }
 
-export function createLaunchJson(config: ScaffoldingConfig): string {
+export function createLaunchJson(moduleUuid: string): string {
   return `${JSON.stringify(
     {
       version: "0.3.0",
@@ -98,7 +88,7 @@ export function createLaunchJson(config: ScaffoldingConfig): string {
           name: "Debug with Minecraft",
           mode: "listen",
           preLaunchTask: "build",
-          targetModuleUuid: config.manifest.moduleUuid,
+          targetModuleUuid: moduleUuid,
           sourceMapRoot: "${workspaceFolder}/dist/debug/",
           generatedSourceRoot: "${workspaceFolder}/dist/scripts/",
           port: 19144,

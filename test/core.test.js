@@ -82,8 +82,8 @@ test("rejects invalid config values early", async () => {
   );
 });
 
-test("creates a Bedrock manifest from config", () => {
-  const manifest = createManifest(createConfigObject());
+test("creates a Bedrock manifest from init-time manifest definition", () => {
+  const manifest = createManifest(createManifestDefinition());
 
   assert.equal(manifest.format_version, 2);
   assert.equal(manifest.header.name, "test-pack");
@@ -183,21 +183,6 @@ function createConfigObject(overrides = {}) {
   return {
     name: "test-pack",
     entry: "src/main.ts",
-    scriptApi: {
-      modules: [
-        {
-          name: "@minecraft/server",
-          version: "2.0.0",
-          manifestVersion: "2.0.0",
-        },
-      ],
-    },
-    manifest: {
-      uuid: "00000000-0000-4000-8000-000000000001",
-      moduleUuid: "00000000-0000-4000-8000-000000000002",
-      version: [1, 0, 0],
-      minEngineVersion: [1, 20, 0],
-    },
     minecraft,
     build: {
       behaviorDir: "behavior",
@@ -206,6 +191,25 @@ function createConfigObject(overrides = {}) {
     },
     ...overrides,
     minecraft,
+  };
+}
+
+function createManifestDefinition(overrides = {}) {
+  return {
+    name: "test-pack",
+    description: "",
+    uuid: "00000000-0000-4000-8000-000000000001",
+    moduleUuid: "00000000-0000-4000-8000-000000000002",
+    version: [1, 0, 0],
+    minEngineVersion: [1, 20, 0],
+    modules: [
+      {
+        name: "@minecraft/server",
+        version: "2.0.0",
+        manifestVersion: "2.0.0",
+      },
+    ],
+    ...overrides,
   };
 }
 
