@@ -67,7 +67,7 @@ async function buildScript(
     }
 
     if (outputPath === path.resolve(`${scriptOutfile}.map`)) {
-      await writeGeneratedFile(debugSourcemapOutfile, outputFile.contents);
+      await writeGeneratedSourcemap(debugSourcemapOutfile, outputFile.contents, scriptOutfile);
       continue;
     }
 
@@ -93,6 +93,16 @@ async function writeGeneratedScript(
   const sourceMappingUrl = toPosixPath(path.relative(path.dirname(scriptOutfile), sourcemapOutfile));
   const script = `${Buffer.from(contents).toString("utf8")}\n//# sourceMappingURL=${sourceMappingUrl}\n`;
   await writeGeneratedFile(scriptOutfile, script);
+}
+
+async function writeGeneratedSourcemap(
+  sourcemapOutfile: string,
+  contents: Uint8Array,
+  scriptOutfile: string,
+): Promise<void> {
+  const sourcemap = JSON.parse(Buffer.from(contents).toString("utf8")) as Record<string, unknown>;
+  sourcemap.file = toPosixPath(path.relative(path.dirname(sourcemapOutfile), scriptOutfile));
+  await writeGeneratedFile(sourcemapOutfile, `${JSON.stringify(sourcemap)}\n`);
 }
 
 async function writeGeneratedFile(outfile: string, contents: string | Uint8Array): Promise<void> {

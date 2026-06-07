@@ -291,7 +291,9 @@ com.mojang/
 - ビルド出力は 1 つの JavaScript ファイルをデフォルトにする
 - Behavior Pack の静的ファイルは `behavior/` をデフォルト入力ディレクトリとする
 - `init` で VS Code Minecraft Bedrock Edition Debugger 向けの `.vscode/launch.json` と `preLaunchTask` 用 `.vscode/tasks.json` を生成する
+- `launch.json` は Minecraft client から `/script debugger connect` する前提で `mode: "listen"` にする
 - `launch.json` では `sourceMapRoot` を `${workspaceFolder}/dist/debug/`、`generatedSourceRoot` を `${workspaceFolder}/dist/scripts/` にする
+- `dist/debug/main.js.map` には `file: "../scripts/main.js"` を出力し、生成 JS と sourcemap の対応を明示する
 - `init` で生成する設定では sourcemap を有効にし、既存設定では sourcemap などの追加出力を設定で切り替え可能にする
 - 通常版と Preview の両方の既定パス候補がある場合はユーザーに選ばせる
 - 通常版と Preview のどちらを選んだかは `scaffolding.config.ts` に保存する

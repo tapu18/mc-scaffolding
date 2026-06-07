@@ -398,7 +398,7 @@ function createLaunchJson(config: ScaffoldingConfig): string {
           type: "minecraft-js",
           request: "attach",
           name: "Debug with Minecraft",
-          mode: "connect",
+          mode: "listen",
           preLaunchTask: "build",
           targetModuleUuid: config.manifest.moduleUuid,
           sourceMapRoot: "${workspaceFolder}/dist/debug/",
