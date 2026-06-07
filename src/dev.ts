@@ -1,21 +1,22 @@
 import path from "node:path";
 import chokidar from "chokidar";
 import { buildProject } from "./build.js";
-import { loadConfig } from "./config.js";
+import { behaviorSourceDir, configFileName, internalOutDir, loadConfig } from "./config.js";
 
 export async function runDev(projectDir: string): Promise<void> {
+  const config = await loadConfig(projectDir);
   await runBuildAttempt(projectDir);
 
   let timer: NodeJS.Timeout | undefined;
   const watcher = chokidar.watch(
     [
       path.join(projectDir, "src/**/*.ts"),
-      path.join(projectDir, "scaffolding.config.ts"),
-      path.join(projectDir, "assets/**/*"),
+      path.join(projectDir, configFileName),
+      path.join(projectDir, config.build?.behaviorDir ?? behaviorSourceDir, "**/*"),
     ],
     {
       ignoreInitial: true,
-      ignored: [path.join(projectDir, "dist/**"), path.join(projectDir, "node_modules/**")],
+      ignored: [path.join(projectDir, `${internalOutDir}/**`), path.join(projectDir, "node_modules/**")],
     },
   );
 

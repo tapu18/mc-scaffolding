@@ -17,4 +17,14 @@ npx mc-scaffolding init
 npm run dev
 ```
 
+生成プロジェクトでは、`src/` に Script API の TypeScript、`behavior/` に Behavior Pack の静的ファイルを置きます。ビルド時はそれらを組み合わせた `dist/` を Minecraft の `development_behavior_packs` へ同期します。
+
+Minecraft の同期先をユーザー単位で保存できます。
+
+```bash
+mc-scaffolding config set-path --edition bedrock --path "/path/to/development_behavior_packs"
+mc-scaffolding config set-path --edition preview --path "/path/to/preview/development_behavior_packs"
+mc-scaffolding config show
+```
+
 要件整理は [docs/requirements.md](docs/requirements.md) にまとめています。

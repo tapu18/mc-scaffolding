@@ -1,32 +1,50 @@
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { checkbox, input, select } from "@inquirer/prompts";
-import { configFileName } from "./config.js";
+import { fileURLToPath } from "node:url";
+import { checkbox, confirm, input, select } from "@inquirer/prompts";
+import { behaviorSourceDir, configFileName } from "./config.js";
 import { CliError, assertCli } from "./errors.js";
+import { writeManifest } from "./manifest.js";
 import { detectMinecraftPaths } from "./minecraft-paths.js";
 import {
-  getLatestStableVersion,
   getMinecraftModuleChoices,
+  toManifestModuleVersion,
   getServerVersionChoices,
+  type ModuleVersionPolicy,
 } from "./npm-registry.js";
-import type { MinecraftEdition, MinecraftPathCandidate, ScriptApiModule } from "./types.js";
+import {
+  formatVersionTuple,
+  parseVersionTuple,
+  resolveRecommendedMinEngineVersion,
+  type VersionTuple,
+} from "./platform-version.js";
+import { loadUserConfig } from "./user-config.js";
+import type {
+  MinecraftEdition,
+  MinecraftPathCandidate,
+  ScaffoldingConfig,
+  ScriptApiModule,
+} from "./types.js";
 
 interface InitAnswers {
   name: string;
   description: string;
   edition: MinecraftEdition;
   minecraftPath?: string;
+  allowBetaApis: boolean;
   serverVersion: string;
-  additionalModules: string[];
-  minEngineVersion: [number, number, number] | "omit";
+  additionalModules: ScriptApiModule[];
+  minEngineVersion: VersionTuple;
 }
 
 const generatedFiles = [
   "package.json",
   "tsconfig.json",
   path.join("src", "main.ts"),
+  behaviorSourceDir,
   configFileName,
   ".gitignore",
 ];
@@ -36,13 +54,18 @@ export async function initProject(projectDir: string): Promise<void> {
 
   const answers = await promptForInit(projectDir);
   const modules = await resolveModules(answers);
+  const projectConfig = createProjectConfig(answers, modules);
 
-  await fs.mkdir(path.join(projectDir, "src"), { recursive: true });
+  await Promise.all([
+    fs.mkdir(path.join(projectDir, "src"), { recursive: true }),
+    fs.mkdir(path.join(projectDir, behaviorSourceDir), { recursive: true }),
+  ]);
   await Promise.all([
     fs.writeFile(path.join(projectDir, "package.json"), createPackageJson(answers, modules)),
     fs.writeFile(path.join(projectDir, "tsconfig.json"), createTsconfigJson()),
     fs.writeFile(path.join(projectDir, "src", "main.ts"), createMainTs()),
-    fs.writeFile(path.join(projectDir, configFileName), createConfigTs(answers, modules)),
+    fs.writeFile(path.join(projectDir, configFileName), createConfigTs(projectConfig)),
+    writeManifest(path.join(projectDir, behaviorSourceDir, "manifest.json"), projectConfig),
     fs.writeFile(path.join(projectDir, ".gitignore"), createGitignore()),
   ]);
 
@@ -79,28 +102,74 @@ async function promptForInit(projectDir: string): Promise<InitAnswers> {
     default: "My Bedrock Script API addon",
   });
 
-  const pathCandidates = await detectMinecraftPaths();
+  const pathCandidates = await getInitMinecraftPathCandidates();
   const existingCandidates = pathCandidates.filter((candidate) => candidate.exists);
   const edition = await promptEdition(existingCandidates);
   const minecraftPath = await promptMinecraftPath(existingCandidates, edition);
-  const serverVersion = await promptServerVersion();
-  const additionalModules = await promptAdditionalModules();
-  const minEngineVersion = parseMinEngineVersion(
-    await input({
-      message: "min_engine_version (empty to omit)",
-      default: "",
-    }),
-  );
+  const allowBetaApis = await promptAllowBetaApis();
+  const moduleVersionPolicy = { edition, allowBetaApis };
+  const serverVersion = await promptServerVersion(moduleVersionPolicy);
+  const additionalModules = await promptAdditionalModules(moduleVersionPolicy);
+  const minEngineVersion = await promptMinEngineVersion();
 
   return {
     name,
     description,
     edition,
     minecraftPath,
+    allowBetaApis,
     serverVersion,
     additionalModules,
     minEngineVersion,
   };
+}
+
+async function getInitMinecraftPathCandidates(): Promise<MinecraftPathCandidate[]> {
+  const [detectedCandidates, userConfig] = await Promise.all([
+    detectMinecraftPaths(),
+    loadUserConfig(),
+  ]);
+  const userCandidates = Object.entries(userConfig.minecraft ?? {}).map(([edition, configuredPath]) => ({
+    edition: edition as MinecraftEdition,
+    label: `Configured ${edition}`,
+    path: configuredPath,
+    exists: true,
+  }));
+  return dedupePathCandidates([...userCandidates, ...detectedCandidates]);
+}
+
+function dedupePathCandidates(candidates: MinecraftPathCandidate[]): MinecraftPathCandidate[] {
+  const seen = new Set<string>();
+  const uniqueCandidates: MinecraftPathCandidate[] = [];
+
+  for (const candidate of candidates) {
+    const key = `${candidate.edition}:${path.resolve(candidate.path)}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    uniqueCandidates.push(candidate);
+  }
+
+  return uniqueCandidates;
+}
+
+async function promptAllowBetaApis(): Promise<boolean> {
+  return confirm({
+    message: "Allow beta Script API modules?",
+    default: false,
+  });
+}
+
+async function promptMinEngineVersion(): Promise<VersionTuple> {
+  const recommended = await resolveRecommendedMinEngineVersion();
+  return parseMinEngineVersion(
+    await input({
+      message: "min_engine_version",
+      default: formatVersionTuple(recommended),
+      required: true,
+    }),
+  );
 }
 
 async function promptEdition(candidates: MinecraftPathCandidate[]): Promise<MinecraftEdition> {
@@ -125,7 +194,11 @@ async function promptMinecraftPath(
 ): Promise<string | undefined> {
   const matchingCandidates = candidates.filter((candidate) => candidate.edition === edition);
   if (matchingCandidates.length === 1) {
-    return matchingCandidates[0]!.path;
+    return input({
+      message: "development_behavior_packs path",
+      default: matchingCandidates[0]!.path,
+      required: true,
+    });
   }
 
   if (matchingCandidates.length > 1) {
@@ -135,6 +208,7 @@ async function promptMinecraftPath(
         name: `${candidate.label}: ${candidate.path}`,
         value: candidate.path,
       })),
+      default: matchingCandidates[0]!.path,
     });
   }
 
@@ -144,24 +218,24 @@ async function promptMinecraftPath(
   });
 }
 
-async function promptServerVersion(): Promise<string> {
-  const choices = await getServerVersionChoices();
+async function promptServerVersion(policy: ModuleVersionPolicy): Promise<string> {
+  const choices = await getServerVersionChoices(policy);
   assertCli(choices.length > 0, "Could not resolve @minecraft/server versions from npm.");
 
   return select<string>({
     message: "@minecraft/server version",
     choices: choices.map((version, index) => ({
-      name: index === 0 ? `${version} (latest stable)` : version,
+      name: index === 0 ? `${version} (recommended)` : version,
       value: version,
     })),
     default: choices[0],
   });
 }
 
-async function promptAdditionalModules(): Promise<string[]> {
-  let modules: string[] = [];
+async function promptAdditionalModules(policy: ModuleVersionPolicy): Promise<ScriptApiModule[]> {
+  let modules: ScriptApiModule[] = [];
   try {
-    modules = await getMinecraftModuleChoices();
+    modules = await getMinecraftModuleChoices(policy);
   } catch {
     modules = [];
   }
@@ -172,11 +246,25 @@ async function promptAdditionalModules(): Promise<string[]> {
 
   return checkbox<string>({
     message: "Additional Script API modules",
-    choices: modules.map((moduleName) => ({
-      name: moduleName,
-      value: moduleName,
+    choices: modules.map((module) => ({
+      name: formatAdditionalModuleChoice(module),
+      value: module.name,
     })),
-  });
+  }).then((selectedNames) =>
+    modules.filter((module) => selectedNames.includes(module.name)),
+  );
+}
+
+function formatAdditionalModuleChoice(module: ScriptApiModule): string {
+  const moduleName = module.name;
+  const suffix = `npm ${module.version}, manifest ${module.manifestVersion}`;
+  if (moduleName === "@minecraft/server-ui") {
+    return `${moduleName} - forms and UI (${suffix})`;
+  }
+  if (moduleName === "@minecraft/server-gametest") {
+    return `${moduleName} - GameTest APIs (${suffix})`;
+  }
+  return `${moduleName} (${suffix})`;
 }
 
 async function resolveModules(answers: InitAnswers): Promise<ScriptApiModule[]> {
@@ -184,21 +272,18 @@ async function resolveModules(answers: InitAnswers): Promise<ScriptApiModule[]> 
     {
       name: "@minecraft/server",
       version: answers.serverVersion,
+      manifestVersion: toManifestModuleVersion(answers.serverVersion),
     },
   ];
 
-  for (const moduleName of answers.additionalModules) {
-    modules.push({
-      name: moduleName,
-      version: await getLatestStableVersion(moduleName),
-    });
-  }
+  modules.push(...answers.additionalModules);
 
   return modules;
 }
 
 function createPackageJson(answers: InitAnswers, modules: ScriptApiModule[]): string {
   const dependencies = Object.fromEntries(modules.map((module) => [module.name, module.version]));
+  const ownDependency = getOwnDependencySpecifier();
   const packageJson = {
     name: sanitizePackageName(answers.name),
     version: "0.1.0",
@@ -211,12 +296,38 @@ function createPackageJson(answers: InitAnswers, modules: ScriptApiModule[]): st
     },
     dependencies,
     devDependencies: {
-      "mc-scaffolding": "^0.1.0",
+      "mc-scaffolding": ownDependency,
       typescript: "^5.9.3",
     },
   };
 
   return `${JSON.stringify(packageJson, null, 2)}\n`;
+}
+
+function getOwnDependencySpecifier(): string {
+  const packageRoot = findPackageRoot(fileURLToPath(import.meta.url));
+  if (!packageRoot) {
+    return "^0.1.0";
+  }
+
+  if (path.basename(path.dirname(packageRoot)) === "node_modules") {
+    return "^0.1.0";
+  }
+
+  return `file:${packageRoot}`;
+}
+
+function findPackageRoot(startFile: string): string | undefined {
+  let currentDir = path.dirname(startFile);
+
+  while (currentDir !== path.dirname(currentDir)) {
+    if (existsSync(path.join(currentDir, "package.json"))) {
+      return currentDir;
+    }
+    currentDir = path.dirname(currentDir);
+  }
+
+  return undefined;
 }
 
 function createTsconfigJson(): string {
@@ -246,37 +357,62 @@ system.run(() => {
 `;
 }
 
-function createConfigTs(answers: InitAnswers, modules: ScriptApiModule[]): string {
-  const minEngineVersion =
-    answers.minEngineVersion === "omit"
-      ? `"omit"`
-      : `[${answers.minEngineVersion.join(", ")}]`;
-  const minecraftPath = answers.minecraftPath ? JSON.stringify(answers.minecraftPath) : "undefined";
+function createConfigTs(config: ScaffoldingConfig): string {
+  const minEngineVersion = `[${config.manifest.minEngineVersion.join(", ")}]`;
+  const minecraftPath = config.minecraft.path ? JSON.stringify(config.minecraft.path) : "undefined";
 
   return `export default {
-  name: ${JSON.stringify(answers.name)},
-  description: ${JSON.stringify(answers.description)},
-  entry: "src/main.ts",
+  name: ${JSON.stringify(config.name)},
+  description: ${JSON.stringify(config.description)},
+  entry: ${JSON.stringify(config.entry)},
   scriptApi: {
-    modules: ${JSON.stringify(modules, null, 6).replace(/^/gm, "    ").trim()},
+    modules: ${JSON.stringify(config.scriptApi.modules, null, 6).replace(/^/gm, "    ").trim()},
   },
   manifest: {
-    uuid: ${JSON.stringify(crypto.randomUUID())},
-    moduleUuid: ${JSON.stringify(crypto.randomUUID())},
-    version: [1, 0, 0],
+    uuid: ${JSON.stringify(config.manifest.uuid)},
+    moduleUuid: ${JSON.stringify(config.manifest.moduleUuid)},
+    version: [${config.manifest.version?.join(", ") ?? "1, 0, 0"}],
     minEngineVersion: ${minEngineVersion},
   },
   minecraft: {
-    edition: ${JSON.stringify(answers.edition)},
-    packName: ${JSON.stringify(answers.name)},
+    edition: ${JSON.stringify(config.minecraft.edition)},
+    packName: ${JSON.stringify(config.minecraft.packName)},
     path: ${minecraftPath},
   },
   build: {
+    behaviorDir: ${JSON.stringify(config.build?.behaviorDir ?? behaviorSourceDir)},
     minify: false,
     sourcemap: false,
   },
 };
 `;
+}
+
+function createProjectConfig(answers: InitAnswers, modules: ScriptApiModule[]): ScaffoldingConfig {
+  return {
+    name: answers.name,
+    description: answers.description,
+    entry: "src/main.ts",
+    scriptApi: {
+      modules,
+    },
+    manifest: {
+      uuid: crypto.randomUUID(),
+      moduleUuid: crypto.randomUUID(),
+      version: [1, 0, 0] as [number, number, number],
+      minEngineVersion: answers.minEngineVersion,
+    },
+    minecraft: {
+      edition: answers.edition,
+      packName: answers.name,
+      path: answers.minecraftPath,
+    },
+    build: {
+      behaviorDir: behaviorSourceDir,
+      minify: false,
+      sourcemap: false,
+    },
+  };
 }
 
 function createGitignore(): string {
@@ -287,18 +423,13 @@ dist/
 `;
 }
 
-function parseMinEngineVersion(value: string): [number, number, number] | "omit" {
+function parseMinEngineVersion(value: string): VersionTuple {
   const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    return "omit";
+  try {
+    return parseVersionTuple(trimmed);
+  } catch {
+    throw new CliError("min_engine_version must use x.y.z format.");
   }
-
-  const parts = trimmed.split(".").map((part) => Number.parseInt(part, 10));
-  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
-    throw new CliError("min_engine_version must be empty or use x.y.z format.");
-  }
-
-  return [parts[0]!, parts[1]!, parts[2]!];
 }
 
 function sanitizePackageName(value: string): string {

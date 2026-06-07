@@ -2,6 +2,12 @@
   "name": "mc-scaffolding",
   "version": "0.1.0",
   "description": "CLI for scaffolding Minecraft Bedrock Script API addons.",
+  "author": "tapu18",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tapu18/mc-scaffolding.git"
+  },
   "type": "module",
   "bin": {
     "mc-scaffolding": "./dist/cli.js"

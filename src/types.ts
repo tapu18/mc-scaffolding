@@ -3,6 +3,7 @@ export type MinecraftEdition = "bedrock" | "preview";
 export interface ScriptApiModule {
   name: string;
   version: string;
+  manifestVersion?: string;
 }
 
 export interface ScaffoldingConfig {
@@ -16,7 +17,7 @@ export interface ScaffoldingConfig {
     uuid: string;
     moduleUuid: string;
     version?: [number, number, number];
-    minEngineVersion?: [number, number, number] | "omit" | "latest-recommended";
+    minEngineVersion: [number, number, number];
   };
   minecraft: {
     edition: MinecraftEdition;
@@ -24,6 +25,7 @@ export interface ScaffoldingConfig {
     path?: string;
   };
   build?: {
+    behaviorDir?: string;
     minify?: boolean;
     sourcemap?: boolean;
   };

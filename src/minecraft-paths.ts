@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { CliError } from "./errors.js";
+import { loadUserConfig } from "./user-config.js";
 import type { MinecraftEdition, MinecraftPathCandidate, ScaffoldingConfig } from "./types.js";
 
 const developmentBehaviorPacks = "development_behavior_packs";
@@ -21,6 +22,11 @@ export async function resolveMinecraftPath(config: ScaffoldingConfig): Promise<s
     return path.resolve(config.minecraft.path);
   }
 
+  const defaultPath = (await loadUserConfig()).minecraft?.[config.minecraft.edition];
+  if (defaultPath) {
+    return path.resolve(defaultPath);
+  }
+
   const candidates = (await detectMinecraftPaths()).filter(
     (candidate) => candidate.edition === config.minecraft.edition && candidate.exists,
   );
@@ -30,7 +36,7 @@ export async function resolveMinecraftPath(config: ScaffoldingConfig): Promise<s
   }
 
   throw new CliError(
-    `Could not detect Minecraft ${config.minecraft.edition} development_behavior_packs path. Set minecraft.path in scaffolding.config.ts.`,
+    `Could not detect Minecraft ${config.minecraft.edition} development_behavior_packs path. Set minecraft.path in scaffolding.config.ts or run mc-scaffolding config set-path.`,
   );
 }
 

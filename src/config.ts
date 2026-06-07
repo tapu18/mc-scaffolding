@@ -5,6 +5,7 @@ import type { ScaffoldingConfig } from "./types.js";
 
 export const configFileName = "scaffolding.config.ts";
 export const internalOutDir = "dist";
+export const behaviorSourceDir = "behavior";
 
 export async function loadConfig(projectDir: string): Promise<ScaffoldingConfig> {
   const configPath = path.join(projectDir, configFileName);
@@ -31,6 +32,10 @@ function validateConfig(config: Partial<ScaffoldingConfig>): asserts config is S
     config.manifest && typeof config.manifest.moduleUuid === "string",
     "Config requires manifest.moduleUuid.",
   );
+  assertCli(
+    config.manifest && Array.isArray(config.manifest.minEngineVersion),
+    "Config requires manifest.minEngineVersion.",
+  );
   assertCli(config.minecraft && typeof config.minecraft.edition === "string", "Config requires minecraft.edition.");
 }
 
@@ -41,7 +46,6 @@ function normalizeConfig(config: ScaffoldingConfig): ScaffoldingConfig {
     entry: config.entry ?? "src/main.ts",
     manifest: {
       version: [1, 0, 0],
-      minEngineVersion: "omit",
       ...config.manifest,
     },
     minecraft: {
@@ -49,6 +53,7 @@ function normalizeConfig(config: ScaffoldingConfig): ScaffoldingConfig {
       packName: config.minecraft.packName ?? config.name,
     },
     build: {
+      behaviorDir: behaviorSourceDir,
       minify: false,
       sourcemap: false,
       ...config.build,

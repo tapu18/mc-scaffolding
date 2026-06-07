@@ -7,6 +7,13 @@ import { runDev } from "./dev.js";
 import { CliError } from "./errors.js";
 import { initProject } from "./init.js";
 import { syncPack } from "./sync.js";
+import {
+  clearDefaultMinecraftPath,
+  loadUserConfig,
+  setDefaultMinecraftPath,
+  getUserConfigPath,
+} from "./user-config.js";
+import type { MinecraftEdition } from "./types.js";
 
 const program = new Command();
 
@@ -51,6 +58,37 @@ program
     await runDev(process.cwd());
   });
 
+const configCommand = program.command("config").description("Manage user defaults.");
+
+configCommand
+  .command("show")
+  .description("Show user configuration.")
+  .action(async () => {
+    const config = await loadUserConfig();
+    console.log(JSON.stringify({ path: getUserConfigPath(), config }, null, 2));
+  });
+
+configCommand
+  .command("set-path")
+  .description("Set the default development_behavior_packs path.")
+  .requiredOption("--edition <edition>", "Minecraft edition: bedrock or preview")
+  .requiredOption("--path <path>", "development_behavior_packs path")
+  .action(async (options: { edition: string; path: string }) => {
+    const edition = parseEdition(options.edition);
+    const configPath = await setDefaultMinecraftPath(edition, path.resolve(options.path));
+    console.log(`Saved ${edition} path to ${configPath}`);
+  });
+
+configCommand
+  .command("clear-path")
+  .description("Clear the default development_behavior_packs path.")
+  .requiredOption("--edition <edition>", "Minecraft edition: bedrock or preview")
+  .action(async (options: { edition: string }) => {
+    const edition = parseEdition(options.edition);
+    const configPath = await clearDefaultMinecraftPath(edition);
+    console.log(`Cleared ${edition} path in ${configPath}`);
+  });
+
 program.parseAsync(process.argv).catch((error: unknown) => {
   if (error instanceof CliError) {
     console.error(error.message);
@@ -67,3 +105,10 @@ program.parseAsync(process.argv).catch((error: unknown) => {
   console.error(String(error));
   process.exitCode = 1;
 });
+
+function parseEdition(value: string): MinecraftEdition {
+  if (value === "bedrock" || value === "preview") {
+    return value;
+  }
+  throw new CliError("Edition must be either bedrock or preview.");
+}

@@ -7,9 +7,9 @@ import type { ScaffoldingConfig } from "./types.js";
 
 export async function syncPack(projectDir: string, config: ScaffoldingConfig): Promise<string> {
   const distDir = path.join(projectDir, internalOutDir);
-  const minecraftPath = await resolveMinecraftPath(config);
+  const minecraftPath = path.resolve(await resolveMinecraftPath(config));
   const packName = config.minecraft.packName ?? config.name;
-  const targetDir = path.join(minecraftPath, packName);
+  const targetDir = resolveSyncTarget(minecraftPath, packName);
 
   assertCli(await pathExists(distDir), "dist does not exist. Run build first.");
 
@@ -18,6 +18,37 @@ export async function syncPack(projectDir: string, config: ScaffoldingConfig): P
   await fs.cp(distDir, targetDir, { recursive: true });
 
   return targetDir;
+}
+
+function resolveSyncTarget(minecraftPath: string, packName: string): string {
+  assertCli(isSingleDirectoryName(packName), "minecraft.packName must be a single directory name.");
+
+  const targetDir = path.resolve(minecraftPath, packName);
+  const relativeTarget = path.relative(minecraftPath, targetDir);
+
+  assertCli(
+    relativeTarget !== "" && !isOutsidePath(relativeTarget) && !path.isAbsolute(relativeTarget),
+    "Resolved sync target must be inside the Minecraft development_behavior_packs directory.",
+  );
+
+  return targetDir;
+}
+
+function isSingleDirectoryName(value: string): boolean {
+  return (
+    value.trim().length > 0 &&
+    value === value.trim() &&
+    value !== "." &&
+    value !== ".." &&
+    !value.includes("/") &&
+    !value.includes("\\") &&
+    !value.includes("\0") &&
+    !path.isAbsolute(value)
+  );
+}
+
+function isOutsidePath(relativePath: string): boolean {
+  return relativePath === ".." || relativePath.startsWith(`..${path.sep}`);
 }
 
 async function pathExists(candidatePath: string): Promise<boolean> {

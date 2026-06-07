@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import type { ScaffoldingConfig } from "./types.js";
 
 interface BedrockManifest {
@@ -7,7 +9,7 @@ interface BedrockManifest {
     description: string;
     uuid: string;
     version: [number, number, number];
-    min_engine_version?: [number, number, number];
+    min_engine_version: [number, number, number];
   };
   modules: Array<{
     type: "script";
@@ -31,6 +33,7 @@ export function createManifest(config: ScaffoldingConfig): BedrockManifest {
       description: config.description ?? "",
       uuid: config.manifest.uuid,
       version,
+      min_engine_version: config.manifest.minEngineVersion,
     },
     modules: [
       {
@@ -43,13 +46,19 @@ export function createManifest(config: ScaffoldingConfig): BedrockManifest {
     ],
     dependencies: config.scriptApi.modules.map((module) => ({
       module_name: module.name,
-      version: module.version,
+      version: module.manifestVersion ?? toManifestModuleVersion(module.version),
     })),
   };
 
-  if (Array.isArray(config.manifest.minEngineVersion)) {
-    manifest.header.min_engine_version = config.manifest.minEngineVersion;
-  }
-
   return manifest;
+}
+
+function toManifestModuleVersion(packageVersion: string): string {
+  return packageVersion.split("-")[0] ?? packageVersion;
+}
+
+export async function writeManifest(manifestPath: string, config: ScaffoldingConfig): Promise<string> {
+  await fs.mkdir(path.dirname(manifestPath), { recursive: true });
+  await fs.writeFile(manifestPath, `${JSON.stringify(createManifest(config), null, 2)}\n`);
+  return manifestPath;
 }

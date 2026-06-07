@@ -41,11 +41,14 @@ MVP では空ディレクトリでの実行を前提とする。
 
 `@minecraft/server` は、デフォルトでは安定版の最新を解決して使う。必要に応じて、`init` の対話中に別バージョンを選べるようにする。
 
+`min_engine_version` は Mojang の `bedrock-samples` の最新 `behavior_pack/manifest.json` から取得した値をデフォルトにする。取得に失敗した場合は、ツール内の fallback 値を使う。値は `init` 時に `scaffolding.config.ts` へ固定保存し、build 時にネットワークアクセスはしない。
+
 対話で聞く項目:
 
 - pack name
 - description
 - 同期先 edition
+- beta Script API module の利用可否
 - `@minecraft/server` version
 - 追加の Script API module dependency
 - `min_engine_version`
@@ -54,13 +57,18 @@ author は MVP では聞かない。
 
 追加の Script API module dependency は、候補一覧から複数選択できる形式にする。`@minecraft/server` は必須として自動追加し、追加モジュールだけを任意選択にする。
 
-追加モジュールの候補は、その時点の安定版 Minecraft Bedrock で利用可能な Script API module dependency をすべて含める。
+追加モジュールの候補は、既知の Script API manifest module 候補をツール内に持ち、npm registry で存在を確認できたものを表示する。beta API を許可しない場合は安定版 module だけを候補にし、beta API を許可する場合は beta-only module も候補に含める。
+
+beta API を許可した場合の npm package version は、通常版 Minecraft Bedrock では `*-stable` suffix を含む beta package version を優先する。Minecraft Preview では npm の `beta` dist-tag を優先する。
+
+`manifest.json` の module dependency version には npm package version をそのまま書かず、`1.0.0-beta.1.26.21-stable` のような package version から `1.0.0` のような短い semver に正規化して書く。
 
 生成候補:
 
 - `package.json`
 - `tsconfig.json`
 - `src/main.ts`
+- `behavior/`
 - `scaffolding.config.ts`
 - `.gitignore`
 
@@ -77,6 +85,10 @@ author は MVP では聞かない。
 
 TypeScript をビルドし、Behavior Pack として配置できる成果物を作る。
 
+`behavior/` は Behavior Pack の静的入力ディレクトリとして扱い、build 時に `dist/` へコピーする。
+
+`behavior/manifest.json` は `init` 時に生成し、build 時には再生成しない。以降は `behavior/` 配下の他のファイルと同じく、ユーザーが編集した内容をそのまま `dist/` へコピーする。
+
 MVP では、ビルド後に Minecraft Bedrock の開発用 Behavior Pack フォルダへの同期まで実行する。
 
 同期しないビルドが必要な場合は `--no-sync` を使う。
@@ -88,6 +100,8 @@ dist/
   manifest.json
   scripts/
     main.js
+  functions/
+  entities/
 ```
 
 ### `mc-scaffolding sync`
@@ -106,7 +120,34 @@ dist/
 
 - `src/**/*.ts`
 - `scaffolding.config.ts`
-- addon assets
+- `behavior/**/*`
+
+### `mc-scaffolding config`
+
+ユーザー単位のデフォルト設定を管理する。
+
+設定ファイル:
+
+```text
+~/.config/mc-scaffolding/config.json
+```
+
+コマンド:
+
+```bash
+mc-scaffolding config set-path --edition bedrock --path "/path/to/development_behavior_packs"
+mc-scaffolding config set-path --edition preview --path "/path/to/preview/development_behavior_packs"
+mc-scaffolding config clear-path --edition bedrock
+mc-scaffolding config show
+```
+
+Minecraft 同期先の解決順:
+
+1. `scaffolding.config.ts` の `minecraft.path`
+2. ユーザー設定の edition 別 default path
+3. OS ごとの自動検出
+
+`init` 時もユーザー設定の default path を同期先候補として表示し、候補が1件の場合は入力欄の default として表示する。
 
 ## 設定ファイル案
 
@@ -119,12 +160,16 @@ export default {
     modules: [
       {
         name: "@minecraft/server",
-        version: "latest-stable",
+        version: "2.7.0",
+        manifestVersion: "2.7.0",
       },
     ],
   },
   manifest: {
-    minEngineVersion: "latest-recommended",
+    uuid: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    moduleUuid: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    version: [1, 0, 0],
+    minEngineVersion: [1, 26, 20],
   },
   pack: {
     behavior: true,
@@ -135,6 +180,11 @@ export default {
     target: "development_behavior_packs",
     packName: "my-addon",
     path: undefined,
+  },
+  build: {
+    behaviorDir: "behavior",
+    minify: false,
+    sourcemap: false,
   },
 };
 ```
@@ -147,12 +197,16 @@ export default {
 my-addon/
   src/
     main.ts
+  behavior/
+    manifest.json
+    functions/
+    entities/
   package.json
   tsconfig.json
   scaffolding.config.ts
 ```
 
-`manifest.json` は `scaffolding.config.ts` と対話入力を元に生成する。
+`behavior/` はユーザーが管理する Behavior Pack の静的ファイル置き場とする。`behavior/manifest.json` は `init` 時に `scaffolding.config.ts` と対話入力を元に生成し、その後はユーザーが直接編集できる入力ファイルとして扱う。build 時には `behavior/` 全体を `dist/` へコピーする。
 
 ビルド後:
 
@@ -162,9 +216,11 @@ my-addon/
     manifest.json
     scripts/
       main.js
+    functions/
+    entities/
 ```
 
-`dist` は Minecraft フォルダそのものではなく、ビルド済みの Behavior Pack を一時的に組み立てる作業用出力先とする。通常の開発では、`dist` の内容を Minecraft の `development_behavior_packs` へ mirror sync する。
+`dist` は Minecraft フォルダそのものではなく、`behavior/` の静的ファイルと生成済み script/manifest を組み合わせた Behavior Pack を一時的に組み立てる作業用出力先とする。通常の開発では、`dist` の内容を Minecraft の `development_behavior_packs` へ mirror sync する。
 
 同期後:
 
@@ -187,23 +243,35 @@ com.mojang/
 - Minecraft Preview は、通常版と同期先パスが違う対象として MVP から対応する
 - `init` は対話式を基本にする
 - 同期先は自動検出を優先し、検出できない場合は設定ファイルで明示できるようにする
+- ユーザー単位の default path を `mc-scaffolding config set-path` で設定できる
+- 同期先は `scaffolding.config.ts` の `minecraft.path`、ユーザー設定、OS 自動検出の順で解決する
+- `init` の同期先入力では、ユーザー設定の default path を入力欄の default として表示する
 - `manifest.json` の UUID は `init` 時に自動生成する
 - `@minecraft/server` は安定版の最新をデフォルトで解決し、必要なら `init` で選択できるようにする
 - `@minecraft/server` の安定版最新は npm registry から取得する
 - `@minecraft/server` の選択候補は、新しい安定版を数件と最新ベータを表示する
-- `manifest.json` の `min_engine_version` は、その時点の推奨値をデフォルト候補にする。ただし省略可能なら省略も選べるようにする
-- `manifest.json` はユーザーが直接管理するファイルではなく、設定と対話入力から自動生成する
-- 自動生成された `manifest.json` は、次回 build 時に上書きしてよい
+- `manifest.json` の `min_engine_version` は必ず出力する
+- `min_engine_version` は `init` 時に Mojang `bedrock-samples` の raw manifest から取得し、失敗時は fallback 値を使う
+- `min_engine_version` は `scaffolding.config.ts` に固定保存し、build 時にはネットワークアクセスしない
+- `manifest.json` は `init` 時に設定と対話入力から自動生成し、その後はユーザーが直接管理できるようにする
+- 自動生成された `behavior/manifest.json` は、次回 build 時に上書きしない
+- build は `behavior/manifest.json` を特別扱いせず、`behavior/` 配下の他のファイルと同じように `dist/` へコピーする
 - Script API 用の `manifest.json` module dependency はツール側で自動生成する
 - `@minecraft/server-ui` など、`@minecraft/server` 以外の module dependency も `init` で選べるようにする
 - 追加 module dependency は候補一覧から複数選択できるようにする
-- 追加 module dependency の候補は、その時点の安定版で利用可能な Script API module dependency をすべて含める
-- 追加 module dependency の候補は npm registry の `@minecraft/*` から推定する
+- 追加 module dependency の候補はツール内の既知候補リストから選び、npm registry で存在を確認できたものを表示する
+- beta Script API module の利用可否を `init` で聞く
+- beta API を許可しない場合、追加 module dependency は安定版があるものだけを表示する
+- beta API を許可する場合、beta-only module も候補に含める
+- 通常版 Minecraft Bedrock で beta API を許可した場合、npm package version は `*-stable` suffix を含む beta version を優先する
+- Minecraft Preview で beta API を許可した場合、npm package version は npm の `beta` dist-tag を優先する
+- `manifest.json` の module dependency version は npm package version から短い semver に正規化する
 - `scaffolding.config.ts` は manifest 生値ではなく、抽象化した設定を持つ
 - author は MVP の `init` では聞かない
 - UUID 再生成コマンドは MVP では用意しない
 - Script API の entry point はまず `scripts/main.js` 固定で始める
 - ビルド出力は 1 つの JavaScript ファイルをデフォルトにする
+- Behavior Pack の静的ファイルは `behavior/` をデフォルト入力ディレクトリとする
 - sourcemap などの追加出力は設定で切り替え可能にする
 - 通常版と Preview の両方が見つかった場合はユーザーに選ばせる
 - 通常版と Preview のどちらを選んだかは `scaffolding.config.ts` に保存する
@@ -257,14 +325,14 @@ Script API は Minecraft のバージョンや module version に影響される
 
 決定:
 
-- `min_engine_version` は、その時点の推奨値をデフォルト候補にする
-- `min_engine_version` が省略可能な場合は、対話式 init で省略も選べるようにする
-- `manifest.json` は設定と対話入力から自動生成する
+- `min_engine_version` は必須とする
+- `min_engine_version` は `init` 時に Mojang `bedrock-samples` の raw manifest から取得した値をデフォルトにする
+- `manifest.json` は `init` 時に設定と対話入力から自動生成し、その後はユーザーが編集できる入力ファイルにする
 - Script API 用の module dependency はツール側で自動生成する
 
 決める必要があること:
 
-- npm registry の `@minecraft/*` から安定版で利用可能な候補をどう判定するか
+- 既知の Script API manifest module 候補リストをリリースごとにどう更新するか
 
 ### 同期先の決定方法
 
