@@ -12,13 +12,13 @@ import {
   resolveRecommendedMinEngineVersion,
   type VersionTuple,
 } from "../minecraft/platform-version.js";
-import { loadUserConfig } from "../commands/user-config.js";
 import { CliError, assertCli } from "../shared/errors.js";
 import type {
   MinecraftEdition,
   MinecraftPathCandidate,
   ScriptApiModule,
 } from "../shared/types.js";
+import { loadUserConfig } from "../user/config.js";
 import { sanitizePackageName } from "./templates.js";
 
 export interface InitAnswers {

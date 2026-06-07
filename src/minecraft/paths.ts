@@ -1,9 +1,9 @@
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
-import { loadUserConfig } from "../commands/user-config.js";
 import { CliError } from "../shared/errors.js";
 import type { MinecraftEdition, MinecraftPathCandidate, ScaffoldingConfig } from "../shared/types.js";
+import { loadUserConfig } from "../user/config.js";
 
 const developmentBehaviorPacks = "development_behavior_packs";
 

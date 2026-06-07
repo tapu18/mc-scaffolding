@@ -10,6 +10,10 @@ interface Packument {
 }
 
 const registryBaseUrl = "https://registry.npmjs.org";
+const registryRequestTimeoutMs = Number.parseInt(
+  process.env.MC_SCAFFOLDING_NPM_REGISTRY_TIMEOUT_MS ?? "5000",
+  10,
+);
 const additionalScriptApiModuleCandidates = [
   "@minecraft/server-ui",
   "@minecraft/server-gametest",
@@ -28,11 +32,24 @@ export interface ModuleVersionPolicy {
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new CliError(`npm registry request failed: ${response.status} ${response.statusText}`);
+  try {
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(registryRequestTimeoutMs),
+    });
+    if (!response.ok) {
+      throw new CliError(`npm registry request failed: ${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as T;
+  } catch (error) {
+    if (error instanceof CliError) {
+      throw error;
+    }
+    if (isAbortError(error)) {
+      throw new CliError(`npm registry request timed out after ${registryRequestTimeoutMs}ms.`);
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    throw new CliError(`npm registry request failed: ${message}`);
   }
-  return (await response.json()) as T;
 }
 
 export async function getPackageVersions(packageName: string): Promise<string[]> {
@@ -159,4 +176,8 @@ function getEmbeddedProductVersion(version: string): [number, number, number] | 
     Number.parseInt(match[2]!, 10),
     Number.parseInt(match[3]!, 10),
   ];
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "TimeoutError";
 }

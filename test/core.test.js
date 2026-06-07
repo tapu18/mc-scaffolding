@@ -35,6 +35,27 @@ test("sorts stable semver versions descending", () => {
   assert.deepEqual(sortSemverDesc(["1.2.0", "1.10.0", "1.2.1"]), ["1.10.0", "1.2.1", "1.2.0"]);
 });
 
+test("reports npm registry timeout as a CLI error", async () => {
+  process.env.MC_SCAFFOLDING_NPM_REGISTRY_TIMEOUT_MS = "10";
+  const { getPackageVersions } = await import(`../dist/npm/registry.js?timeout-test=${Date.now()}`);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    const error = new Error("The operation was aborted due to timeout");
+    error.name = "TimeoutError";
+    throw error;
+  };
+
+  try {
+    await assert.rejects(
+      () => getPackageVersions("@minecraft/server"),
+      /npm registry request timed out after 10ms/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.MC_SCAFFOLDING_NPM_REGISTRY_TIMEOUT_MS;
+  }
+});
+
 test("loads and normalizes a valid config", async () => {
   const projectDir = await createProjectFixture();
 
