@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { toManifestModuleVersion } from "./manifest-version.js";
 import type { ScaffoldingConfig } from "./types.js";
 
 interface BedrockManifest {
@@ -51,10 +52,6 @@ export function createManifest(config: ScaffoldingConfig): BedrockManifest {
   };
 
   return manifest;
-}
-
-function toManifestModuleVersion(packageVersion: string): string {
-  return packageVersion.split("-")[0] ?? packageVersion;
 }
 
 export async function writeManifest(manifestPath: string, config: ScaffoldingConfig): Promise<string> {

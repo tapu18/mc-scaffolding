@@ -61,7 +61,7 @@ author は MVP では聞かない。
 
 beta API を許可した場合の npm package version は、通常版 Minecraft Bedrock では `*-stable` suffix を含む beta package version を優先する。Minecraft Preview では npm の `beta` dist-tag を優先する。
 
-`manifest.json` の module dependency version には npm package version をそのまま書かず、`1.0.0-beta.1.26.21-stable` のような package version から `1.0.0` のような短い semver に正規化して書く。
+`manifest.json` の module dependency version には npm package version をそのまま書かず、`1.0.0-beta.1.26.21-stable` のような package version から `1.0.0-beta` のような manifest 用 module version に正規化して書く。
 
 生成候補:
 
@@ -277,7 +277,7 @@ com.mojang/
 - beta API を許可する場合、beta-only module も候補に含める
 - 通常版 Minecraft Bedrock で beta API を許可した場合、npm package version は `*-stable` suffix を含む beta version を優先する
 - Minecraft Preview で beta API を許可した場合、npm package version は npm の `beta` dist-tag を優先する
-- `manifest.json` の module dependency version は npm package version から短い semver に正規化する
+- `manifest.json` の module dependency version は npm package version から manifest 用 module version に正規化し、beta API では `-beta` suffix を保持する
 - `scaffolding.config.ts` は manifest 生値ではなく、抽象化した設定を持つ
 - author は MVP の `init` では聞かない
 - UUID 再生成コマンドは MVP では用意しない

@@ -8,10 +8,10 @@ import { checkbox, confirm, input, select } from "@inquirer/prompts";
 import { behaviorSourceDir, configFileName } from "./config.js";
 import { CliError, assertCli } from "./errors.js";
 import { writeManifest } from "./manifest.js";
+import { toManifestModuleVersion } from "./manifest-version.js";
 import { getDefaultMinecraftPathCandidates } from "./minecraft-paths.js";
 import {
   getMinecraftModuleChoices,
-  toManifestModuleVersion,
   getServerVersionChoices,
   type ModuleVersionPolicy,
 } from "./npm-registry.js";

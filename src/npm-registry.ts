@@ -1,4 +1,5 @@
 import { CliError } from "./errors.js";
+import { toManifestModuleVersion } from "./manifest-version.js";
 import { isStableVersion, sortSemverDesc } from "./semver.js";
 import type { MinecraftEdition, ScriptApiModule } from "./types.js";
 
@@ -124,10 +125,6 @@ export async function getMinecraftModuleChoices(policy: ModuleVersionPolicy): Pr
   }
 
   return availableModules;
-}
-
-export function toManifestModuleVersion(packageVersion: string): string {
-  return packageVersion.split("-")[0] ?? packageVersion;
 }
 
 function getLatestStableBetaVersion(versions: string[]): string | undefined {
