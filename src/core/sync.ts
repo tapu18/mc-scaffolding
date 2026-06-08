@@ -3,12 +3,19 @@ import path from "node:path";
 import { resolveExistingBehaviorDir } from "./behavior.js";
 import { behaviorSourceDir, internalOutDir } from "./config.js";
 import { CliError, assertCli } from "../shared/errors.js";
+import {
+  assertExistingDirectory,
+  isNotFoundError,
+  isOutsidePath,
+  isWindowsAccessError,
+  pathExists,
+} from "../shared/fs.js";
 import { resolveMinecraftPath } from "../minecraft/paths.js";
 import type { ScaffoldingConfig } from "../shared/types.js";
 
 const markerFileName = ".mc-scaffolding.json";
 
-interface SyncMarker {
+export interface SyncMarker {
   tool: "mc-scaffolding";
   version: 1;
   projectDir: string;
@@ -26,11 +33,30 @@ export interface SyncResult {
   actions: string[];
 }
 
+export interface SyncPlan extends SyncResult {
+  distDir: string;
+  behaviorDir: string;
+  marker: SyncMarker;
+}
+
 export async function syncPack(
   projectDir: string,
   config: ScaffoldingConfig,
   options: SyncOptions = {},
 ): Promise<SyncResult> {
+  const plan = await createSyncPlan(projectDir, config, options);
+  if (!plan.dryRun) {
+    await applySyncPlan(plan);
+  }
+
+  return toSyncResult(plan);
+}
+
+export async function createSyncPlan(
+  projectDir: string,
+  config: ScaffoldingConfig,
+  options: SyncOptions = {},
+): Promise<SyncPlan> {
   const distDir = path.join(projectDir, internalOutDir);
   const behaviorDir = await resolveExistingBehaviorDir(
     projectDir,
@@ -54,35 +80,36 @@ export async function syncPack(
   actions.push(`copy ${path.join(distDir, "scripts")}`);
   actions.push(`write ${path.join(targetDir, markerFileName)}`);
 
-  if (dryRun) {
-    return { targetDir, dryRun, actions };
-  }
+  return { targetDir, dryRun, actions, distDir, behaviorDir, marker };
+}
 
-  await replaceTargetContents(distDir, behaviorDir, targetDir, marker);
+export async function applySyncPlan(plan: SyncPlan): Promise<void> {
+  await replaceTargetContents(plan);
+}
 
-  return { targetDir, dryRun, actions };
+function toSyncResult(plan: SyncPlan): SyncResult {
+  return {
+    targetDir: plan.targetDir,
+    dryRun: plan.dryRun,
+    actions: plan.actions,
+  };
 }
 
 async function assertGeneratedOutput(distDir: string): Promise<void> {
   assertCli(await pathExists(path.join(distDir, "scripts")), "dist/scripts does not exist. Run build first.");
 }
 
-async function replaceTargetContents(
-  distDir: string,
-  behaviorDir: string,
-  targetDir: string,
-  marker: SyncMarker,
-): Promise<void> {
+async function replaceTargetContents(plan: SyncPlan): Promise<void> {
   try {
-    await fs.mkdir(targetDir, { recursive: true });
-    await emptyDirectory(targetDir);
-    await fs.cp(behaviorDir, targetDir, { recursive: true });
-    await copyGeneratedOutput(distDir, targetDir);
-    await writeMarker(targetDir, marker);
+    await fs.mkdir(plan.targetDir, { recursive: true });
+    await emptyDirectory(plan.targetDir);
+    await fs.cp(plan.behaviorDir, plan.targetDir, { recursive: true });
+    await copyGeneratedOutput(plan.distDir, plan.targetDir);
+    await writeMarker(plan.targetDir, plan.marker);
   } catch (error) {
     if (isWindowsAccessError(error)) {
       throw new CliError(
-        `Could not sync target because Windows denied access. Close Minecraft, Explorer, or editors using the pack directory, then retry: ${targetDir}`,
+        `Could not sync target because Windows denied access. Close Minecraft, Explorer, or editors using the pack directory, then retry: ${plan.targetDir}`,
       );
     }
     throw error;
@@ -212,47 +239,9 @@ function isSingleDirectoryName(value: string): boolean {
   );
 }
 
-function isOutsidePath(relativePath: string): boolean {
-  return relativePath === ".." || relativePath.startsWith(`..${path.sep}`);
-}
-
 function assertDevelopmentBehaviorPacksPath(candidatePath: string): void {
   assertCli(
     path.basename(candidatePath).toLowerCase() === "development_behavior_packs",
     "Minecraft path must point to a development_behavior_packs directory.",
-  );
-}
-
-async function assertExistingDirectory(candidatePath: string, label: string): Promise<void> {
-  try {
-    const stat = await fs.stat(candidatePath);
-    assertCli(stat.isDirectory(), `${label} must be a directory.`);
-  } catch (error) {
-    if (isNotFoundError(error)) {
-      assertCli(false, `${label} does not exist: ${candidatePath}`);
-    }
-    throw error;
-  }
-}
-
-async function pathExists(candidatePath: string): Promise<boolean> {
-  try {
-    await fs.access(candidatePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function isNotFoundError(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
-}
-
-function isWindowsAccessError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error.code === "EPERM" || error.code === "EBUSY")
   );
 }

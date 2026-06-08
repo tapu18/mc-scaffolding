@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { behaviorSourceDir, internalOutDir } from "./config.js";
 import { assertCli } from "../shared/errors.js";
+import { isOutsidePath, pathExists } from "../shared/fs.js";
 
 export function resolveBehaviorDir(projectDir: string, behaviorDir: string): string {
   assertCli(behaviorDir.trim().length > 0, "build.behaviorDir must not be empty.");
@@ -39,15 +40,3 @@ async function assertBehaviorDir(behaviorDir: string): Promise<void> {
   assertCli(behaviorStat.isDirectory(), "build.behaviorDir must point to a directory.");
 }
 
-function isOutsidePath(relativePath: string): boolean {
-  return relativePath === ".." || relativePath.startsWith(`..${path.sep}`);
-}
-
-async function pathExists(candidatePath: string): Promise<boolean> {
-  try {
-    await fs.access(candidatePath);
-    return true;
-  } catch {
-    return false;
-  }
-}

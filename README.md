@@ -19,6 +19,8 @@ npm run sync
 npm run dev
 ```
 
+`mc-scaffolding version` または `mc-scaffolding --version` で CLI のバージョンを確認できます。`init` 後に npm install を自分で実行したい場合は `npx mc-scaffolding init --no-install` を使います。
+
 生成プロジェクトでは、`src/` に Script API の TypeScript、`behavior/` に Behavior Pack の静的ファイルを置きます。ビルド時は生成済み script/debug を `dist/` に出力し、同期時に `behavior/` と `dist/scripts` を Minecraft の `development_behavior_packs` へコピーします。`dist/debug` は同期しません。
 
 `build` はローカルの `dist/` 生成のみ行います。Minecraft へ反映する場合は `sync` を実行するか、`build --sync` を使います。`sync` は同期先に `.mc-scaffolding.json` を置き、既存の未管理フォルダは既定では上書きしません。既存フォルダをこのツールの管理対象として取り込む場合は `--force`、変更内容だけ確認したい場合は `--dry-run` を使います。npm scripts 経由で CLI オプションを渡す場合は `npm run sync -- --force` のように `--` を挟みます。

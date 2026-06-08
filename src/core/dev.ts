@@ -3,6 +3,7 @@ import chokidar from "chokidar";
 import type { FSWatcher } from "chokidar";
 import { buildProject } from "./build.js";
 import { behaviorSourceDir, configFileName, internalOutDir, loadConfig } from "./config.js";
+import { isInsidePath } from "../shared/fs.js";
 
 export interface DevSession {
   close(): Promise<void>;
@@ -92,11 +93,6 @@ function isIgnoredPath(projectDir: string, candidatePath: string): boolean {
     isInsidePath(path.resolve(projectDir, internalOutDir), resolvedPath) ||
     isInsidePath(path.resolve(projectDir, "node_modules"), resolvedPath)
   );
-}
-
-function isInsidePath(parentPath: string, candidatePath: string): boolean {
-  const relativePath = path.relative(parentPath, candidatePath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
 }
 
 function waitForWatcherReady(watcher: FSWatcher): Promise<void> {

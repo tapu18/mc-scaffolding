@@ -83,6 +83,8 @@ beta API を許可した場合の npm package version は、通常版 Minecraft 
 
 `init` 後は `npm install` まで自動実行する。
 
+ネットワーク制限下や CI で生成結果だけ確認したい場合のために、`init --no-install` で npm install をスキップできる。
+
 ### `mc-scaffolding build`
 
 TypeScript をビルドし、Behavior Pack として配置できる成果物を作る。
@@ -295,6 +297,7 @@ com.mojang/
 - 設定ファイル名は `scaffolding.config.ts` とする
 - 同期先の既定パス候補がない場合は、`init` 中に手入力させる
 - `init` 後は `npm install` まで自動実行する
+- `init --no-install` で npm install をスキップできる
 - `init` は空ディレクトリでの実行を前提とし、既存プロジェクトへの追加は MVP では扱わない
 - package manager は npm 固定とし、pnpm / yarn の選択は MVP では扱わない
 - `init` 時に生成予定のファイルと同名のファイルが既に存在する場合は、上書きせずエラーで止める
@@ -376,8 +379,9 @@ Script API は Minecraft のバージョンや module version に影響される
 - `init` は対話式を基本にする
 - package manager は npm 固定とする
 - `init` 後は `npm install` まで自動実行する
+- `init --no-install` で npm install をスキップできる
 - `init` 時に生成予定ファイルが既に存在する場合はエラーで止める
-- VS Code 向け設定は MVP では生成しない
+- VS Code 向けの `.vscode/launch.json` と `.vscode/tasks.json` は MVP で生成する
 
 決める必要があること:
 
@@ -396,7 +400,6 @@ Script API は Minecraft のバージョンや module version に影響される
 - GitHub Actions 用の build check
 - 既存プロジェクトへの `init` 追加対応
 - pnpm / yarn 対応
-- VS Code 向け設定生成
 
 ## 名前
 

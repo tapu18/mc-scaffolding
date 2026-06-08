@@ -4,6 +4,7 @@ import { build as esbuild } from "esbuild";
 import { resolveExistingBehaviorDir } from "./behavior.js";
 import { behaviorSourceDir, internalOutDir } from "./config.js";
 import { assertCli } from "../shared/errors.js";
+import { pathExists, toPosixPath } from "../shared/fs.js";
 import { syncPack, type SyncOptions, type SyncResult } from "./sync.js";
 import type { ScaffoldingConfig } from "../shared/types.js";
 
@@ -112,15 +113,3 @@ async function writeGeneratedFile(outfile: string, contents: string | Uint8Array
   await fs.writeFile(outfile, contents);
 }
 
-function toPosixPath(candidatePath: string): string {
-  return candidatePath.split(path.sep).join("/");
-}
-
-async function pathExists(candidatePath: string): Promise<boolean> {
-  try {
-    await fs.access(candidatePath);
-    return true;
-  } catch {
-    return false;
-  }
-}

@@ -5,8 +5,9 @@ export function registerInitCommand(program: Command): void {
   program
     .command("init")
     .description("Create a new Script API addon project in the current directory.")
-    .action(async () => {
-      await initProject(process.cwd());
+    .option("--no-install", "skip npm install after generating files")
+    .action(async (options: { install?: boolean }) => {
+      await initProject(process.cwd(), { install: options.install !== false });
       console.log("Initialized mc-scaffolding project.");
     });
 }

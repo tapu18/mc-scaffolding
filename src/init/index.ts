@@ -29,7 +29,11 @@ const generatedFiles = [
   ".gitignore",
 ];
 
-export async function initProject(projectDir: string): Promise<void> {
+export interface InitOptions {
+  install?: boolean;
+}
+
+export async function initProject(projectDir: string, options: InitOptions = {}): Promise<void> {
   await assertNoGeneratedFileCollisions(projectDir);
 
   const answers = await promptForInit(projectDir);
@@ -53,7 +57,9 @@ export async function initProject(projectDir: string): Promise<void> {
     fs.writeFile(path.join(projectDir, ".gitignore"), createGitignore()),
   ]);
 
-  await runNpmInstall(projectDir);
+  if (options.install ?? true) {
+    await runNpmInstall(projectDir);
+  }
 }
 
 async function assertNoGeneratedFileCollisions(projectDir: string): Promise<void> {

@@ -3,14 +3,17 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
+import { createProgram } from "../dist/cli.js";
 import { loadConfig } from "../dist/core/config.js";
 import { runDev } from "../dist/core/dev.js";
 import { createManifest } from "../dist/core/manifest.js";
-import { syncPack } from "../dist/core/sync.js";
+import { createSyncPlan, syncPack } from "../dist/core/sync.js";
 import { toManifestModuleVersion } from "../dist/minecraft/manifest-version.js";
 import { resolveMinecraftPath } from "../dist/minecraft/paths.js";
 import { formatVersionTuple, parseVersionTuple } from "../dist/minecraft/platform-version.js";
+import { selectPreferredModuleVersion, selectServerVersionChoices } from "../dist/npm/module-selection.js";
 import { sortSemverDesc } from "../dist/npm/semver.js";
+import { getPackageVersion } from "../dist/shared/package-info.js";
 
 const tempDirs = [];
 
@@ -33,6 +36,54 @@ test("parses and formats version tuples", () => {
 
 test("sorts stable semver versions descending", () => {
   assert.deepEqual(sortSemverDesc(["1.2.0", "1.10.0", "1.2.1"]), ["1.10.0", "1.2.1", "1.2.0"]);
+});
+
+test("prints package version from CLI", async () => {
+  const packageJson = JSON.parse(await fs.readFile("package.json", "utf8"));
+  const program = createProgram();
+  const originalLog = console.log;
+  let output = "";
+
+  console.log = (value) => {
+    output += String(value);
+  };
+
+  try {
+    await program.parseAsync(["node", "mc-scaffolding", "version"]);
+  } finally {
+    console.log = originalLog;
+  }
+
+  assert.equal(getPackageVersion(), packageJson.version);
+  assert.equal(output, packageJson.version);
+});
+
+test("exposes no-install init option", () => {
+  const initCommand = createProgram().commands.find((command) => command.name() === "init");
+
+  assert.ok(initCommand);
+  assert.ok(initCommand.options.some((option) => option.long === "--no-install"));
+});
+
+test("selects Minecraft module versions without registry access", () => {
+  const versions = ["1.0.0", "1.2.0", "1.0.0-beta.1.21.70-stable", "1.0.0-beta.1.21.80-stable"];
+
+  assert.equal(
+    selectPreferredModuleVersion("@minecraft/server", { versions }, { edition: "bedrock", allowBetaApis: true }),
+    "1.0.0-beta.1.21.80-stable",
+  );
+  assert.equal(
+    selectPreferredModuleVersion(
+      "@minecraft/server",
+      { versions, distTags: { beta: "2.0.0-beta.1.21.90-preview" } },
+      { edition: "preview", allowBetaApis: true },
+    ),
+    "2.0.0-beta.1.21.90-preview",
+  );
+  assert.deepEqual(
+    selectServerVersionChoices(versions, { edition: "bedrock", allowBetaApis: false }),
+    ["1.2.0", "1.0.0"],
+  );
 });
 
 test("reports npm registry timeout as a CLI error", async () => {
@@ -170,6 +221,21 @@ test("dry-run reports sync actions without writing target files", async () => {
   assert.equal(result.targetDir, targetDir);
   assert.ok(result.actions.some((action) => action.includes("create")));
   await assert.rejects(() => fs.access(targetDir), /ENOENT/);
+});
+
+test("creates a sync plan without writing target files", async () => {
+  const projectDir = await createProjectFixture();
+  const targetRoot = await createMinecraftRoot("mc-scaffolding-sync-");
+  const config = createConfigObject({ minecraft: { path: targetRoot } });
+  await writeGeneratedOutput(projectDir, "console.log('plan');");
+
+  const plan = await createSyncPlan(projectDir, config, { dryRun: true });
+
+  assert.equal(plan.dryRun, true);
+  assert.equal(plan.behaviorDir, path.join(projectDir, "behavior"));
+  assert.equal(plan.distDir, path.join(projectDir, "dist"));
+  assert.match(plan.marker.projectDir, /mc-scaffolding-project-/);
+  await assert.rejects(() => fs.access(plan.targetDir), /ENOENT/);
 });
 
 test("requires an existing Minecraft development_behavior_packs path", async () => {
