@@ -16,8 +16,13 @@ export function createPackageJson(answers: InitAnswers, modules: ScriptApiModule
     type: "module",
     scripts: {
       dev: "mc-scaffolding dev",
+      "dev:force": "mc-scaffolding dev --force",
       build: "mc-scaffolding build",
+      "build:sync": "mc-scaffolding build --sync",
+      "build:sync:force": "mc-scaffolding build --sync --force",
       sync: "mc-scaffolding sync",
+      "sync:force": "mc-scaffolding sync --force",
+      "sync:dry-run": "mc-scaffolding sync --dry-run",
     },
     dependencies,
     devDependencies: {

@@ -93,9 +93,9 @@ TypeScript をビルドし、Behavior Pack として配置できる成果物を�
 
 debug 用 sourcemap が有効な場合、生成 JavaScript は `dist/scripts/`、sourcemap は `dist/debug/` に分けて出力する。
 
-MVP では、ビルド後に Minecraft Bedrock の開発用 Behavior Pack フォルダへの同期まで実行する。
+MVP では、`build` はローカルの `dist/` 生成のみを既定とする。
 
-同期しないビルドが必要な場合は `--no-sync` を使う。
+ビルド後に Minecraft Bedrock の開発用 Behavior Pack フォルダへ同期したい場合は `--sync` を使う。同期時に既存の未管理フォルダを取り込む場合は `--force`、書き込み前に内容を確認したい場合は `--dry-run` を使う。
 
 想定出力:
 
@@ -111,11 +111,21 @@ dist/
 
 `behavior/` の静的ファイルと `dist/` の生成済み script/debug を Minecraft Bedrock の開発用 Behavior Pack フォルダへコピーする。
 
-`build` は同期まで含むため、`sync` は「再ビルドせずに現在の `dist` を同期したい」場合の補助コマンドとする。
+`sync` は「再ビルドせずに現在の `dist` を同期したい」場合のコマンドとする。
+
+同期先 root は既存の `development_behavior_packs` ディレクトリである必要がある。存在しない場合、ツールは作成せずにエラーで止める。
+
+同期先 pack ディレクトリには `.mc-scaffolding.json` を置き、以降はこのマーカーが現在の project と一致する場合だけ mirror delete を許可する。既存ディレクトリにマーカーがない場合や、別 project のマーカーがある場合は、既定では上書きせずに止める。`--force` が指定された場合だけ、既存ディレクトリをこの project の管理対象として取り込む。
+
+`--dry-run` は同期先へ書き込まず、作成・置換・コピー・マーカー更新の予定を表示する。
+
+npm scripts 経由で CLI オプションを渡す場合、`npm run sync -- --force` のように npm 用の `--` 区切りを使う。生成する `package.json` には、よく使う操作として `sync:force`、`sync:dry-run`、`build:sync`、`build:sync:force`、`dev:force` の script alias も用意する。
+
+同期時は pack ディレクトリ自体を rename せず、pack ディレクトリを固定したまま中身を空にしてコピーし直す。コピー途中で失敗した場合は、修正後に再度 sync すれば復旧できる前提とする。個別ファイルが Minecraft や Explorer にロックされていて削除・上書きできない場合は、Minecraft や pack フォルダを開いているアプリを閉じるよう案内してエラーにする。
 
 ### `mc-scaffolding dev`
 
-ファイル変更を監視し、変更時に `build` 相当の処理を実行する。MVP では `build` が同期まで含むため、`dev` も変更のたびにビルドと同期を行う。
+ファイル変更を監視し、変更時に build と sync を実行する。
 
 起動時には一度 build/sync を実行してから watch に入る。build error が発生しても watch は継続し、次の保存時に再試行する。
 
@@ -272,10 +282,12 @@ com.mojang/
 - `init` では通常版と Preview のどちらを使うか必ずユーザーに選ばせる
 - 通常版と Preview のどちらを選んだかは `scaffolding.config.ts` に保存する
 - WSL や Linux launcher のパス自動検出は MVP では入れない
-- `dev` の同期は mirror sync とし、削除されたファイルは同期先からも削除する
+- `sync` と `dev` の同期は mirror sync とし、削除されたファイルは同期先からも削除する
 - mirror sync の削除対象除外は MVP では用意しない
-- `build` はビルド後の同期まで含める
-- 同期しないビルド用に `build --no-sync` を用意する
+- `build` は既定ではローカルの `dist` 生成のみ行う
+- 同期付きビルド用に `build --sync` を用意する
+- 既存の未管理同期先を取り込む場合は `--force` を必要とする
+- 同期前の確認用に `sync --dry-run` と `build --sync --dry-run` を用意する
 - `dist` は生成済み script/debug の作業用出力先として固定し、ユーザー設定では Minecraft 同期先だけを扱う
 - `dev` は起動時に一度 build/sync してから watch に入る
 - `dev` は build error 時も watch を継続し、次の保存で再試行する

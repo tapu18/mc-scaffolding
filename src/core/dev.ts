@@ -8,9 +8,13 @@ export interface DevSession {
   close(): Promise<void>;
 }
 
-export async function runDev(projectDir: string): Promise<DevSession> {
+export interface DevOptions {
+  force?: boolean;
+}
+
+export async function runDev(projectDir: string, options: DevOptions = {}): Promise<DevSession> {
   const config = await loadConfig(projectDir);
-  await runBuildAttempt(projectDir);
+  await runBuildAttempt(projectDir, options);
   const srcDir = path.join(projectDir, "src");
   const behaviorDir = path.join(projectDir, config.build?.behaviorDir ?? behaviorSourceDir);
   const configPath = path.join(projectDir, configFileName);
@@ -29,7 +33,7 @@ export async function runDev(projectDir: string): Promise<DevSession> {
       clearTimeout(timer);
     }
     timer = setTimeout(() => {
-      void runBuildAttempt(projectDir);
+      void runBuildAttempt(projectDir, options);
     }, 100);
   });
 
@@ -51,10 +55,13 @@ export async function runDev(projectDir: string): Promise<DevSession> {
   };
 }
 
-async function runBuildAttempt(projectDir: string): Promise<void> {
+async function runBuildAttempt(projectDir: string, options: DevOptions): Promise<void> {
   try {
     const config = await loadConfig(projectDir);
-    const result = await buildProject(projectDir, config, { sync: true });
+    const result = await buildProject(projectDir, config, {
+      sync: true,
+      syncOptions: { force: options.force },
+    });
     console.log(`Built ${path.relative(projectDir, result.distDir)}`);
     if (result.syncedTo) {
       console.log(`Synced ${result.syncedTo}`);

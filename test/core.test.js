@@ -105,20 +105,22 @@ test("resolves an explicit Minecraft path", async () => {
 
 test("syncs behavior and generated scripts to the target pack directory", async () => {
   const projectDir = await createProjectFixture();
-  const targetRoot = await createTempDir("mc-scaffolding-sync-");
+  const targetRoot = await createMinecraftRoot("mc-scaffolding-sync-");
   const config = createConfigObject({ minecraft: { path: targetRoot } });
   await writeGeneratedOutput(projectDir, "console.log('sync check');");
 
-  const targetDir = await syncPack(projectDir, config);
+  const result = await syncPack(projectDir, config);
+  const targetDir = result.targetDir;
 
   assert.equal(targetDir, path.join(targetRoot, "test-pack"));
   assert.equal(await readText(path.join(targetDir, "manifest.json")), "{}");
   assert.match(await readText(path.join(targetDir, "scripts", "main.js")), /sync check/);
+  assert.match(await readText(path.join(targetDir, ".mc-scaffolding.json")), /mc-scaffolding/);
 });
 
 test("rejects unsafe sync target pack names", async () => {
   const projectDir = await createProjectFixture();
-  const targetRoot = await createTempDir("mc-scaffolding-sync-");
+  const targetRoot = await createMinecraftRoot("mc-scaffolding-sync-");
   const config = createConfigObject({
     minecraft: {
       path: targetRoot,
@@ -133,9 +135,57 @@ test("rejects unsafe sync target pack names", async () => {
   );
 });
 
+test("refuses to overwrite an unmanaged sync target unless forced", async () => {
+  const projectDir = await createProjectFixture();
+  const targetRoot = await createMinecraftRoot("mc-scaffolding-sync-");
+  const targetDir = path.join(targetRoot, "test-pack");
+  await fs.mkdir(targetDir, { recursive: true });
+  await fs.writeFile(path.join(targetDir, "user-file.txt"), "do not delete");
+  const config = createConfigObject({ minecraft: { path: targetRoot } });
+  await writeGeneratedOutput(projectDir, "console.log('force sync');");
+
+  await assert.rejects(
+    () => syncPack(projectDir, config),
+    /Refusing to overwrite existing sync target without \.mc-scaffolding\.json/,
+  );
+
+  const result = await syncPack(projectDir, config, { force: true });
+
+  assert.equal(result.targetDir, targetDir);
+  await assert.rejects(() => fs.access(path.join(targetDir, "user-file.txt")), /ENOENT/);
+  assert.match(await readText(path.join(targetDir, "scripts", "main.js")), /force sync/);
+});
+
+test("dry-run reports sync actions without writing target files", async () => {
+  const projectDir = await createProjectFixture();
+  const targetRoot = await createMinecraftRoot("mc-scaffolding-sync-");
+  const targetDir = path.join(targetRoot, "test-pack");
+  const config = createConfigObject({ minecraft: { path: targetRoot } });
+  await writeGeneratedOutput(projectDir, "console.log('dry run');");
+
+  const result = await syncPack(projectDir, config, { dryRun: true });
+
+  assert.equal(result.dryRun, true);
+  assert.equal(result.targetDir, targetDir);
+  assert.ok(result.actions.some((action) => action.includes("create")));
+  await assert.rejects(() => fs.access(targetDir), /ENOENT/);
+});
+
+test("requires an existing Minecraft development_behavior_packs path", async () => {
+  const projectDir = await createProjectFixture();
+  const missingTargetRoot = path.join(projectDir, "development_behavior_packs");
+  const config = createConfigObject({ minecraft: { path: missingTargetRoot } });
+  await writeGeneratedOutput(projectDir, "console.log('missing target');");
+
+  await assert.rejects(
+    () => syncPack(projectDir, config),
+    /Minecraft development_behavior_packs path does not exist/,
+  );
+});
+
 test("dev rebuilds and syncs when a source file changes", async () => {
   const projectDir = await createProjectFixture();
-  const targetRoot = await createTempDir("mc-scaffolding-dev-");
+  const targetRoot = await createMinecraftRoot("mc-scaffolding-dev-");
   await writeProjectConfig(projectDir, createConfigObject({ minecraft: { path: targetRoot } }));
   await fs.writeFile(path.join(projectDir, "src", "main.ts"), "console.log('first');\n");
 
@@ -164,6 +214,13 @@ async function createTempDir(prefix) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   tempDirs.push(tempDir);
   return tempDir;
+}
+
+async function createMinecraftRoot(prefix) {
+  const parentDir = await createTempDir(prefix);
+  const minecraftRoot = path.join(parentDir, "development_behavior_packs");
+  await fs.mkdir(minecraftRoot, { recursive: true });
+  return minecraftRoot;
 }
 
 async function writeProjectConfig(projectDir, config) {

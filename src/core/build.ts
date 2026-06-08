@@ -4,18 +4,19 @@ import { build as esbuild } from "esbuild";
 import { resolveExistingBehaviorDir } from "./behavior.js";
 import { behaviorSourceDir, internalOutDir } from "./config.js";
 import { assertCli } from "../shared/errors.js";
-import { syncPack } from "./sync.js";
+import { syncPack, type SyncOptions, type SyncResult } from "./sync.js";
 import type { ScaffoldingConfig } from "../shared/types.js";
 
 export interface BuildOptions {
   sync: boolean;
+  syncOptions?: SyncOptions;
 }
 
 export async function buildProject(
   projectDir: string,
   config: ScaffoldingConfig,
   options: BuildOptions,
-): Promise<{ distDir: string; syncedTo?: string }> {
+): Promise<{ distDir: string; syncedTo?: string; syncResult?: SyncResult }> {
   const distDir = path.join(projectDir, internalOutDir);
   const entry = path.resolve(projectDir, config.entry ?? "src/main.ts");
   const scriptOutfile = path.join(distDir, "scripts", "main.js");
@@ -31,9 +32,11 @@ export async function buildProject(
     return { distDir };
   }
 
+  const syncResult = await syncPack(projectDir, config, options.syncOptions);
   return {
     distDir,
-    syncedTo: await syncPack(projectDir, config),
+    syncedTo: syncResult.targetDir,
+    syncResult,
   };
 }
 
