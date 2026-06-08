@@ -9,7 +9,7 @@ import type { ScaffoldingConfig, ScriptApiModule } from "../shared/types.js";
 import { runNpmInstall } from "./npm-install.js";
 import { promptForInit, type InitAnswers } from "./prompts.js";
 import {
-  createConfigTs,
+  createConfigJson,
   createGitignore,
   createLaunchJson,
   createMainTs,
@@ -26,6 +26,7 @@ const generatedFiles = [
   path.join(".vscode", "launch.json"),
   path.join(".vscode", "tasks.json"),
   configFileName,
+  "scaffolding.config.ts",
   ".gitignore",
 ];
 
@@ -50,7 +51,7 @@ export async function initProject(projectDir: string, options: InitOptions = {})
     fs.writeFile(path.join(projectDir, "package.json"), createPackageJson(answers, modules)),
     fs.writeFile(path.join(projectDir, "tsconfig.json"), createTsconfigJson()),
     fs.writeFile(path.join(projectDir, "src", "main.ts"), createMainTs()),
-    fs.writeFile(path.join(projectDir, configFileName), createConfigTs(projectConfig)),
+    fs.writeFile(path.join(projectDir, configFileName), createConfigJson(projectConfig)),
     fs.writeFile(path.join(projectDir, ".vscode", "launch.json"), createLaunchJson(manifestDefinition.moduleUuid)),
     fs.writeFile(path.join(projectDir, ".vscode", "tasks.json"), createTasksJson()),
     writeManifest(path.join(projectDir, behaviorSourceDir, "manifest.json"), manifestDefinition),

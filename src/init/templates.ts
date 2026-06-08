@@ -59,25 +59,26 @@ system.run(() => {
 `;
 }
 
-export function createConfigTs(config: ScaffoldingConfig): string {
-  const minecraftPath = config.minecraft.path ? JSON.stringify(config.minecraft.path) : "undefined";
-
-  return `export default {
-  name: ${JSON.stringify(config.name)},
-  description: ${JSON.stringify(config.description)},
-  entry: ${JSON.stringify(config.entry)},
-  minecraft: {
-    edition: ${JSON.stringify(config.minecraft.edition)},
-    packName: ${JSON.stringify(config.minecraft.packName)},
-    path: ${minecraftPath},
-  },
-  build: {
-    behaviorDir: ${JSON.stringify(config.build?.behaviorDir ?? behaviorSourceDir)},
-    minify: ${JSON.stringify(config.build?.minify ?? false)},
-    sourcemap: ${JSON.stringify(config.build?.sourcemap ?? false)},
-  },
-};
-`;
+export function createConfigJson(config: ScaffoldingConfig): string {
+  return `${JSON.stringify(
+    {
+      name: config.name,
+      description: config.description,
+      entry: config.entry,
+      minecraft: {
+        edition: config.minecraft.edition,
+        packName: config.minecraft.packName,
+        ...(config.minecraft.path ? { path: config.minecraft.path } : {}),
+      },
+      build: {
+        behaviorDir: config.build?.behaviorDir ?? behaviorSourceDir,
+        minify: config.build?.minify ?? false,
+        sourcemap: config.build?.sourcemap ?? false,
+      },
+    },
+    null,
+    2,
+  )}\n`;
 }
 
 export function createLaunchJson(moduleUuid: string): string {

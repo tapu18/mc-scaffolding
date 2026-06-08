@@ -133,6 +133,16 @@ test("rejects invalid config values early", async () => {
   );
 });
 
+test("rejects malformed JSON config early", async () => {
+  const projectDir = await createProjectFixture();
+  await fs.writeFile(path.join(projectDir, "scaffolding.config.json"), "{ invalid json");
+
+  await assert.rejects(
+    () => loadConfig(projectDir),
+    /scaffolding\.config\.json must be valid JSON/,
+  );
+});
+
 test("creates a Bedrock manifest from init-time manifest definition", () => {
   const manifest = createManifest(createManifestDefinition());
 
@@ -292,8 +302,8 @@ async function createMinecraftRoot(prefix) {
 
 async function writeProjectConfig(projectDir, config) {
   await fs.writeFile(
-    path.join(projectDir, "scaffolding.config.ts"),
-    `export default ${JSON.stringify(config, null, 2)};\n`,
+    path.join(projectDir, "scaffolding.config.json"),
+    `${JSON.stringify(config, null, 2)}\n`,
   );
 }
 

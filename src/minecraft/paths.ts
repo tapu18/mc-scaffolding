@@ -29,7 +29,7 @@ export async function resolveMinecraftPath(config: ScaffoldingConfig): Promise<s
   }
 
   throw new CliError(
-    `Could not resolve Minecraft ${config.minecraft.edition} development_behavior_packs path. Set minecraft.path in scaffolding.config.ts or run mc-scaffolding config set-path.`,
+    `Could not resolve Minecraft ${config.minecraft.edition} development_behavior_packs path. Set minecraft.path in scaffolding.config.json or run mc-scaffolding config set-path.`,
   );
 }
 
