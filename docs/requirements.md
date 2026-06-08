@@ -109,7 +109,7 @@ dist/
 
 ### `mc-scaffolding sync`
 
-`behavior/` の静的ファイルと `dist/` の生成済み script/debug を Minecraft Bedrock の開発用 Behavior Pack フォルダへコピーする。
+`behavior/` の静的ファイルと `dist/scripts` の生成済み script を Minecraft Bedrock の開発用 Behavior Pack フォルダへコピーする。`dist/debug` は同期しない。
 
 `sync` は「再ビルドせずに現在の `dist` を同期したい」場合のコマンドとする。
 
@@ -222,7 +222,7 @@ my-addon/
       main.js.map
 ```
 
-`dist` は Minecraft フォルダそのものではなく、生成済み script/debug を置く作業用出力先とする。通常の開発では、`behavior/` と `dist/` の内容を Minecraft の `development_behavior_packs` へ mirror sync する。
+`dist` は Minecraft フォルダそのものではなく、生成済み script/debug を置く作業用出力先とする。通常の開発では、`behavior/` と `dist/scripts` の内容を Minecraft の `development_behavior_packs` へ mirror sync する。
 
 同期後:
 

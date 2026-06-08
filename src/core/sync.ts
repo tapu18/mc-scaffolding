@@ -52,9 +52,6 @@ export async function syncPack(
   actions.push(`${await pathExists(targetDir) ? "replace" : "create"} ${targetDir}`);
   actions.push(`copy ${behaviorDir}`);
   actions.push(`copy ${path.join(distDir, "scripts")}`);
-  if (await pathExists(path.join(distDir, "debug"))) {
-    actions.push(`copy ${path.join(distDir, "debug")}`);
-  }
   actions.push(`write ${path.join(targetDir, markerFileName)}`);
 
   if (dryRun) {
@@ -100,7 +97,6 @@ async function emptyDirectory(directoryPath: string): Promise<void> {
 
 async function copyGeneratedOutput(distDir: string, targetDir: string): Promise<void> {
   await copyGeneratedDirectory(distDir, targetDir, "scripts", { required: true });
-  await copyGeneratedDirectory(distDir, targetDir, "debug", { required: false });
 }
 
 async function copyGeneratedDirectory(

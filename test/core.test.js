@@ -116,6 +116,7 @@ test("syncs behavior and generated scripts to the target pack directory", async 
   assert.equal(await readText(path.join(targetDir, "manifest.json")), "{}");
   assert.match(await readText(path.join(targetDir, "scripts", "main.js")), /sync check/);
   assert.match(await readText(path.join(targetDir, ".mc-scaffolding.json")), /mc-scaffolding/);
+  await assert.rejects(() => fs.access(path.join(targetDir, "debug")), /ENOENT/);
 });
 
 test("rejects unsafe sync target pack names", async () => {
